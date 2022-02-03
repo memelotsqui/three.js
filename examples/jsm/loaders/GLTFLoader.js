@@ -55,6 +55,11 @@ import {
 	TangentSpaceNormalMap,
 	Texture,
 	TextureLoader,
+	//custom
+    CubeTexture,
+    CubeReflectionMapping,
+    AnimationMixer,
+    //end custom
 	TriangleFanDrawMode,
 	TriangleStripDrawMode,
 	Vector2,
@@ -1135,6 +1140,64 @@ class GLTFTextureWebPExtension {
 		} );
 
 	}
+	//custom new
+    loadCubeTexture(cubeTextureIndex) {
+        const name = this.name;
+        const parser = this.parser;
+        const json = parser.json.extras;
+        const images = parser.json.images;
+
+
+
+        const cubeTextureDef = json.cubeTextures[cubeTextureIndex];
+        if (!cubeTextureDef.extensions || !cubeTextureDef.extensions[name]) {
+
+            return null;
+
+        }
+        const extension = cubeTextureDef.extensions[name];
+        //const source = json.images[extension.source];
+
+        let loader = parser.textureLoader;
+
+
+
+        return this.detectSupport().then(function(isSupported) {
+            if (isSupported) {
+                let cubeTextures = [];
+                for (let i = 0, il = extension.source.length; i < il; i++) {
+                    const src = images[extension.source[i]];
+                    if (src.uri) {
+                        const handler = parser.options.manager.getHandler(src.uri);
+                        if (handler !== null) loader = handler;
+                    }
+                    cubeTextures.push(parser.loadCubeTextureImage(cubeTextureIndex, src, loader));
+
+                }
+                return Promise.all(cubeTextures).then(function(cubeImages) {
+                    const sampler = parser.json.samplers[cubeTextureDef.sampler] || {};
+
+                    let cubeTexture = new CubeTexture(cubeImages,
+                        CubeReflectionMapping);
+
+                    if (cubeTextureDef.name) cubeTexture.name = cubeTextureDef.name;
+
+                    cubeTexture.needsUpdate = true;
+                    return cubeTexture;
+                });
+            }
+
+            if (json.extensionsRequired && json.extensionsRequired.indexOf(name) >= 0) {
+
+                throw new Error('THREE.GLTFLoader: WebP required by asset but unsupported.');
+
+            }
+
+            // Fall back to PNG or JPEG.
+            return parser.loadCubeTexture(cubeTextureIndex);
+
+        });
+    }
 
 	detectSupport() {
 
@@ -1732,8 +1795,10 @@ class GLTFMaterialsPbrSpecularGlossinessExtension {
 
 		material.map = materialParams.map === undefined ? null : materialParams.map;
 
-		material.lightMap = null;
-		material.lightMapIntensity = 1.0;
+		//custom lightmap
+		material.lightMap = materialParams.lightMap;
+		material.lightMapIntensity = materialParams.lightmapIntensity;
+		//end custom lightmap
 
 		material.aoMap = materialParams.aoMap === undefined ? null : materialParams.aoMap;
 		material.aoMapIntensity = 1.0;
@@ -1760,7 +1825,7 @@ class GLTFMaterialsPbrSpecularGlossinessExtension {
 		material.glossinessMap = materialParams.glossinessMap === undefined ? null : materialParams.glossinessMap;
 		material.glossiness = materialParams.glossiness;
 
-		material.alphaMap = null;
+		material.alphaMap = materialParams.alphaMap === undefined ? null : materialParams.alphaMap;
 
 		material.envMap = materialParams.envMap === undefined ? null : materialParams.envMap;
 		material.envMapIntensity = 1.0;
@@ -1884,6 +1949,97 @@ class GLTFCubicSplineQuaternionInterpolant extends GLTFCubicSplineInterpolant {
 
 }
 
+//custom
+class CustomCubicSplineInterpolant extends Interpolant {
+
+    constructor(parameterPositions, sampleValues, sampleSize, weights, tangents, resultBuffer) {
+
+        super(parameterPositions, sampleValues, sampleSize, resultBuffer);
+
+        this.weights = weights;
+        this.tangents = tangents;
+        //console.log(sampleSize);
+        //console.log(this.values);
+
+    }
+
+    copySampleValue_(index) {
+
+        // Copies a sample value to the result buffer. See description of glTF
+        // CUBICSPLINE values layout in interpolate_() function below.
+
+        const result = this.resultBuffer,
+            values = this.sampleValues,
+            valueSize = this.valueSize,
+            offset = index * valueSize * 3 + valueSize;
+
+        for (let i = 0; i !== valueSize; i++) {
+
+            result[i] = values[offset + i];
+
+        }
+
+        return result;
+
+    }
+
+}
+
+CustomCubicSplineInterpolant.prototype.beforeStart_ = CustomCubicSplineInterpolant.prototype.copySampleValue_;
+
+CustomCubicSplineInterpolant.prototype.afterEnd_ = CustomCubicSplineInterpolant.prototype.copySampleValue_;
+
+CustomCubicSplineInterpolant.prototype.interpolate_ = function(i1, t0, t, t1) {
+
+    const result = this.resultBuffer;
+    const values = this.sampleValues;
+    const tangents = this.tangents;
+    //working here
+    //console.log(tangents);
+    const weights = this.weights;
+    const stride = this.valueSize;
+
+    //console.log(this.valueSize);
+
+    const stride2 = stride * 2;
+    const stride3 = stride * 3;
+
+    const td = t1 - t0;
+
+    const p = (t - t0) / td;
+    const pp = p * p;
+    const ppp = pp * p;
+
+    //const offset1 = i1 * stride3;
+    //const offset0 = offset1 - stride3;
+
+    const offset1 = i1;
+    const offset0 = i1 - 1;
+
+
+    const outtan1 = tangents[(i1 - 1) * 2 + 1];
+    const intan0 = tangents[i1 * 2];
+
+    const s2 = -2 * ppp + 3 * pp;
+    const s3 = ppp - pp;
+    const s0 = 1 - s2;
+    const s1 = s3 - pp + p;
+
+    // Layout of keyframe output values for CUBICSPLINE animations:
+    //   [ inTangent_1, splineVertex_1, outTangent_1, inTangent_2, splineVertex_2, ... ]
+    for (let i = 0; i !== stride; i++) {
+
+        const p0 = values[offset0 + i]; // splineVertex_k
+        const m0 = outtan1 * td; // outTangent_k * (t_k+1 - t_k)
+        const p1 = values[offset1 + i]; // splineVertex_k+1
+        const m1 = intan0 * td; // inTangent_k+1 * (t_k+1 - t_k)
+
+        result[i] = s0 * p0 + s1 * m0 + s2 * p1 + s3 * m1;
+    }
+
+    return result;
+
+};
 
 /*********************************/
 /********** INTERNALS ************/
@@ -2314,19 +2470,31 @@ class GLTFParser {
 				parser.getDependencies( 'scene' ),
 				parser.getDependencies( 'animation' ),
 				parser.getDependencies( 'camera' ),
+                parser.getDependencies('material'),
+                parser.getDependencies('node'),
+                parser.getDependencies('texture'),
+                parser.getDependencies('animationClip'),
+                parser.getDependencies('animationMixer'),
+                parser.getDependencies('cubeTexture')
 
 			] );
 
 		} ).then( function ( dependencies ) {
 
 			const result = {
-				scene: dependencies[ 0 ][ json.scene || 0 ],
-				scenes: dependencies[ 0 ],
-				animations: dependencies[ 1 ],
-				cameras: dependencies[ 2 ],
-				asset: json.asset,
-				parser: parser,
-				userData: {}
+				scene: dependencies[0][json.scene || 0],
+                scenes: dependencies[0],
+                animations: dependencies[1],
+                cameras: dependencies[2],
+                materials: dependencies[3],
+                nodes: dependencies[4],
+                textures: dependencies[5],
+                animationClips: dependencies[6],
+                animationMixers: dependencies[7],
+                cubeTextures: dependencies[8],
+                asset: json.asset,
+                parser: parser,
+                userData: {}
 			};
 
 			addUnknownExtensionsToUserData( extensions, result, json );
@@ -2568,6 +2736,23 @@ class GLTFParser {
 				case 'camera':
 					dependency = this.loadCamera( index );
 					break;
+					//custom new
+				case 'animationClip':
+					dependency = this.loadAnimationClip(index)
+					break;
+
+				case 'animationMixer':
+					dependency = this.loadAnimationMixer(index)
+					break;
+
+				case 'cubeTexture':
+					dependency = this._invokeOne(function(ext) {
+
+						return ext.loadCubeTexture && ext.loadCubeTexture(index);
+
+					});
+					break;
+						
 
 				default:
 					throw new Error( 'Unknown type: ' + type );
@@ -2591,22 +2776,39 @@ class GLTFParser {
 
 		let dependencies = this.cache.get( type );
 
-		if ( ! dependencies ) {
+		if (!dependencies) {
 
-			const parser = this;
-			const defs = this.json[ type + ( type === 'mesh' ? 'es' : 's' ) ] || [];
+            if (type !== "animationClip" && type !== "animationMixer" && type !== "cubeTexture") {
+                const parser = this;
 
-			dependencies = Promise.all( defs.map( function ( def, index ) {
+                const defs = this.json[type + (type === 'mesh' ? 'es' : 's')] || [];
 
-				return parser.getDependency( type, index );
+                dependencies = Promise.all(defs.map(function(def, index) {
 
-			} ) );
+                    return parser.getDependency(type, index);
 
-			this.cache.add( type, dependencies );
+                }));
 
-		}
+                this.cache.add(type, dependencies);
 
-		return dependencies;
+            } else {
+                //custom
+                const parser = this;
+
+                const defs = this.json.extras !== undefined ? this.json.extras[type + 's'] || [] : [];
+
+                dependencies = Promise.all(defs.map(function(def, index) {
+
+                    return parser.getDependency(type, index);
+
+                }));
+
+                this.cache.add(type, dependencies);
+            }
+
+        }
+
+        return dependencies;
 
 	}
 
@@ -3056,7 +3258,7 @@ class GLTFParser {
 				this.cache.add( cacheKey, cachedMaterial );
 
 				this.associations.set( cachedMaterial, this.associations.get( material ) );
-
+				
 			}
 
 			material = cachedMaterial;
@@ -3134,6 +3336,15 @@ class GLTFParser {
 
 				pending.push( parser.assignTexture( materialParams, 'map', metallicRoughness.baseColorTexture ) );
 
+				// CUSTOM ALPHA MAP
+				if (metallicRoughness.baseColorTexture.extras) {
+                    var extras = metallicRoughness.baseColorTexture.extras || {};
+                    if (extras.alphaMapTexture !== undefined) {
+                        pending.push(parser.assignTexture(materialParams, 'alphaMap', extras.alphaMapTexture));
+
+                    }
+                }
+
 			}
 
 			materialParams.metalness = metallicRoughness.metallicFactor !== undefined ? metallicRoughness.metallicFactor : 1.0;
@@ -3159,6 +3370,23 @@ class GLTFParser {
 			} ) ) );
 
 		}
+
+		// custom lightmap
+        if (materialDef.extras) {
+            var extras = materialDef.extras || {};
+            if (extras.lightmapTexture !== undefined) {
+
+                pending.push(parser.assignTexture(materialParams, 'lightMap', extras.lightmapTexture));
+
+                if (extras.lightmapIntensity !== undefined) {
+
+                    materialParams.lightMapIntensity = extras.lightmapIntensity;
+
+                }
+            }
+
+        }
+        //end custom lightmap
 
 		if ( materialDef.doubleSided === true ) {
 
@@ -3247,6 +3475,10 @@ class GLTFParser {
 			// baseColorTexture, emissiveTexture, and specularGlossinessTexture use sRGB encoding.
 			if ( material.map ) material.map.encoding = sRGBEncoding;
 			if ( material.emissiveMap ) material.emissiveMap.encoding = sRGBEncoding;
+			if (material.lightMap) {
+                material.lightMap.encoding = sRGBEncoding;
+                material.lightMap.minFilter = LinearMipmapLinearFilter;
+            }
 
 			assignExtrasToUserData( material, materialDef );
 
@@ -3562,6 +3794,282 @@ class GLTFParser {
 	 * @param {number} animationIndex
 	 * @return {Promise<AnimationClip>}
 	 */
+
+	 loadCubeTexture(cubeTextureIndex) {
+
+        // let pmGen = new THREE.PMREMGenerator(renderer);
+        // pmGen.compileCubemapShader();
+
+        //https://threejs.org/docs/#api/en/textures/CubeTexture
+        //CubeTexture( images, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy )
+        //load all 6 images, and then place them here
+        const json = this.json.extras;
+        const samplers = this.json.samplers || {};
+        const images = this.json.images;
+        const options = this.options;
+        const cubeTextureDef = json.cubeTextures[cubeTextureIndex];
+
+        let cubeTextures = [];
+        let loader = this.textureLoader;
+		console.log(cubeTextureDef);
+        for (let i = 0, il = cubeTextureDef.source.length; i < il; i++) {
+            const src = images[cubeTextureDef.source[i]];
+            if (src.uri) {
+                const handler = options.manager.getHandler(src.uri);
+                if (handler !== null) loader = handler;
+
+            }
+            cubeTextures.push(this.loadCubeTextureImage(cubeTextureIndex, src, loader));
+        }
+
+        return Promise.all(cubeTextures).then(function(cubeImages) {
+			
+            const sampler = samplers[cubeTextureDef.sampler] || {};
+
+            let cubeTexture = new CubeTexture(cubeImages,
+                CubeReflectionMapping);
+
+            if (cubeTextureDef.name) cubeTexture.name = cubeTextureDef.name;
+
+            // cubeTexture.format = RGBFormat;
+            // cubeTexture.magFilter = WEBGL_FILTERS[sampler.magFilter] || LinearFilter;
+            // cubeTexture.minFilter = WEBGL_FILTERS[sampler.minFilter] || LinearMipmapLinearFilter;
+            // cubeTexture.wrapS = WEBGL_WRAPPINGS[sampler.wrapS] || RepeatWrapping;
+            // cubeTexture.wrapT = WEBGL_WRAPPINGS[sampler.wrapT] || RepeatWrapping;
+
+            cubeTexture.needsUpdate = true;
+            return cubeTexture;
+        });
+
+
+    }
+
+    loadCubeTextureImage(cubeTextureIndex, source, loader) {
+
+		
+        const json = this.json.extras;
+        const parser = this;
+        const options = this.options;
+
+        const URL = self.URL || self.webkitURL;
+
+        let sourceURI = source.uri;
+        let isObjectURL = false;
+
+        if (source.bufferView !== undefined) {
+
+            // Load binary image data from bufferView, if provided.
+
+            sourceURI = parser.getDependency('bufferView', source.bufferView).then(function(bufferView) {
+
+
+                isObjectURL = true;
+                const blob = new Blob([bufferView], { type: source.mimeType });
+                sourceURI = URL.createObjectURL(blob);
+                return sourceURI;
+
+            });
+
+        } else if (source.uri === undefined) {
+
+            throw new Error('THREE.GLTFLoader: Image ' + textureIndex + ' is missing URI and bufferView');
+
+        }
+
+        return Promise.resolve(sourceURI).then(function(sourceURI) {
+
+            return new Promise(function(resolve, reject) {
+                let onLoad = resolve;
+
+                if (loader.isImageBitmapLoader === true) {
+
+                    onLoad = function(imageBitmap) {
+
+                        const texture = new Texture( imageBitmap );
+						texture.needsUpdate = true;
+
+						resolve( texture );
+
+                    };
+
+                }
+
+                loader.load(LoaderUtils.resolveURL(sourceURI, options.path), onLoad, undefined, reject);
+
+            });
+
+        }).then(function(texture) {
+
+            // Clean up resources and configure Texture.
+
+            if (isObjectURL === true) {
+
+                URL.revokeObjectURL(sourceURI);
+
+            }
+            return texture.image;
+
+        }).catch(err => { console.log(err) });
+
+    }
+
+
+    loadAnimationClip(animationClipIndex) {
+        const json = this.json.extras;
+        const animationClipDef = json.animationClips[animationClipIndex];
+        console.log(animationClipDef);
+
+        const pendingTrackNames = [];
+        const pendingTimesAccessors = [];
+        const pendingValuesAccessors = [];
+        const pendingWeightsAccessors = [];
+        const pendingTangentsAccessors = [];
+
+        for (let i = 0, il = animationClipDef.keyframeTracks.length; i < il; i++) {
+
+            const keyframeTrack = animationClipDef.keyframeTracks[i];
+            const trackName = keyframeTrack.trackName;
+            const time = keyframeTrack.TIME;
+            const value = keyframeTrack.VALUE;
+            const weight = keyframeTrack.WEIGHT;
+            const tangent = keyframeTrack.TANGENT;
+
+
+
+            pendingTrackNames.push(trackName);
+            pendingTimesAccessors.push(this.getDependency('accessor', time));
+            pendingValuesAccessors.push(this.getDependency('accessor', value))
+            pendingWeightsAccessors.push(this.getDependency('accessor', weight))
+            pendingTangentsAccessors.push(this.getDependency('accessor', tangent))
+
+        }
+
+        return Promise.all([
+            Promise.all(pendingTrackNames),
+            Promise.all(pendingTimesAccessors),
+            Promise.all(pendingValuesAccessors),
+            Promise.all(pendingWeightsAccessors),
+            Promise.all(pendingTangentsAccessors)
+        ]).then(function(dependencies) {
+            const trackNames = dependencies[0];
+            const timeAccessors = dependencies[1];
+            const valueAccessors = dependencies[2];
+            const weightAccessors = dependencies[3];
+            const tangentAccessors = dependencies[4];
+
+            const tracks = [];
+            for (let i = 0, il = trackNames.length; i < il; i++) {
+
+                const trackName = trackNames[i];
+                const timeAccessor = timeAccessors[i];
+                const valueAccessor = valueAccessors[i];
+                const weightAccessor = weightAccessors[i];
+                const tangentAccessor = tangentAccessors[i];
+
+                const track = new NumberKeyframeTrack(
+                    trackName,
+                    timeAccessor.array,
+                    valueAccessor.array,
+                    INTERPOLATION.CUBICCUSTOM
+                );
+
+                //console.log(track);
+                //console.log(this.values);
+                track.createInterpolant = function InterpolantFactoryMethodGLTFCubicSpline(result) {
+                    //console.log('tada');
+                    //     // A CUBICSPLINE keyframe in glTF has three output values for each input value,
+                    //     // representing inTangent, splineVertex, and outTangent. As a result, track.getValueSize()
+                    //     // must be divided by three to get the interpolant's sampleSize argument.
+                    //     console.log(result);
+                    //console.log(this.times.length + "    " + this.values.length);
+                    //return new CustomCubicSplineInterpolant(this.times, this.values, this.getValueSize() / 3, weightAccessor.array, tangentAccessor.array, result);
+                    return new CustomCubicSplineInterpolant(this.times, this.values, this.getValueSize(), weightAccessor.array, tangentAccessor.array, result);
+
+                };
+
+                // Mark as CUBICSPLINE. `track.getInterpolation()` doesn't support custom interpolants.
+                track.createInterpolant.isInterpolantFactoryMethodGLTFCubicSpline = true;
+
+                tracks.push(track);
+            }
+            //console.log(tracks);
+
+            const name = animationClipDef.name ? animationClipDef.name : 'animation_' + animationClipIndex;
+
+            const animClip = new AnimationClip(name, undefined, tracks);
+            //console.log(animClip);
+            return animClip;
+        });
+
+
+    }
+
+
+    loadAnimationMixer(animationMixerIndex) {
+        const json = this.json.extras;
+
+        const animationMixerDef = json.animationMixers[animationMixerIndex]
+
+        const pendingNodes = [];
+        const pendingLayers = [];
+        const pendingParameters = [];
+
+        pendingNodes.push(animationMixerDef.nodes);
+        pendingParameters.push(animationMixerDef.parameters);
+        pendingLayers.push(animationMixerDef.layers);
+
+        return Promise.all([
+            Promise.all(pendingNodes),
+            Promise.all(pendingParameters),
+            Promise.all(pendingLayers)
+        ]).then(function(dependencies) {
+            const nodes = dependencies[0];
+            const parameters = dependencies[1]
+            const layers = dependencies[2];
+
+
+        });
+        //new AnimationMixer(this.model);
+
+        // for (let i = 0, il = animationMixerDef.nodes.length; i < il; i++) {
+
+        //     const node = animationMixerDef.nodes[i]
+        //     const pendingLayers = [];
+
+        //     pendingNodes.push(this.getDependency('node', node));
+        // }
+
+        // for (let i = 0, il = animationMixerDef.layers.length; i < il; i++) {
+        //     pendingParameters.push(animationMixerDef.parameters[i]);
+        //     //const parameter = animationMixerDef.parameters[i];
+        //     //console.log(parameter);
+        // }
+
+        // for (let i = 0, il = animationMixerDef.layers.length; i < il; i++) {
+
+        //     const layer = animationMixerDef.layers[i];
+        //     //layer.blendMode
+        //     //layer.weight
+        //     const layerActions = [];
+
+        //     for (let j = 0, jl = layer.states.length; j < jl; j++) {
+
+        //         const state = layer.state[j];
+        //         //state.name
+
+        //         const pendingTransitions = [];
+        //         const clip = this.getDependency('animationClip', state.clip);
+        //         for (let k = 0, kl = state.transitions.length; k < kl; k++) {
+
+
+        //         }
+
+        //     }
+        // }
+
+        // console.log("found mixer");
+    }
+
 	loadAnimation( animationIndex ) {
 
 		const json = this.json;
@@ -3777,8 +4285,8 @@ class GLTFParser {
 
 		const nodeDef = json.nodes[ nodeIndex ];
 
-		// reserve node's name before its dependencies, so the root has the intended name.
-		const nodeName = nodeDef.name ? parser.createUniqueName( nodeDef.name ) : '';
+		//const nodeName = nodeDef.name ? parser.createUniqueName( nodeDef.name ) : '';
+		const nodeName = nodeDef.name;
 
 		return ( function () {
 
