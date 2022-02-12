@@ -17,6 +17,8 @@ class Builder3D {
         const clock = new THREE.Clock();
         this.xrSession = null;
 
+        const ktx2TranscoderPath ='https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/libs/basis/';
+
         this.builderButton = builderButton;
         if (builderButton == null) {
             this.builderButton = new BuilderButton();
@@ -41,9 +43,7 @@ class Builder3D {
         this.controls = null;
         this.gltfLoader = new GLTFLoader();
 
-        let ktx2loader = new KTX2Loader(this.gltfLoader.manager);
-        console.log(ktx2loader);
-        this.gltfLoader.setKTX2Loader(ktx2loader);
+        
 
 
         this.currentPage = "";
@@ -59,8 +59,6 @@ class Builder3D {
         //let mouse, touchHammer;
         let statsVR, stats;
         let iOSDevice = false;
-
-        console.log(this.pageSession);
 
         SetupViewer(containerID);
 
@@ -94,7 +92,6 @@ class Builder3D {
 
         function SetupViewer(containerID) {
             scope.container = document.getElementById(containerID);
-            console.log(scope.container);
             if (scope.container == null) {
                 scope.container = document.createElement("div");
                 // not necessary to append to dom for xr
@@ -113,15 +110,22 @@ class Builder3D {
                 renderer.setSize(scope.container.clientWidth, scope.container.clientHeight);
                 //renderer.outputEncoding = THREE.LinearEncoding;
                 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-                //renderer.toneMappingExposure = 1;
+                renderer.toneMappingExposure = 1;
                 scope.container.appendChild(renderer.domElement);
                 renderer.rect = renderer.domElement.getBoundingClientRect();
                 renderer.localClippingEnabled = true;
                 renderer.xr.enabled = true;
+                let ktx2loader = new KTX2Loader(scope.gltfLoader.manager)
+                    .setTranscoderPath(ktx2TranscoderPath)
+                    .detectSupport(renderer);
+                
+                scope.gltfLoader.setKTX2Loader(ktx2loader);
+
                 scope.renderer = renderer;
                 scope.rules = new WorldRules(scope);
                 //testingCode();
 
+                
 
 
                 if (loadIndex === true) {
@@ -275,7 +279,7 @@ class Builder3D {
 
     clearSession() {
         this.pageSession.forEach(smart => {
-            console.log(smart);
+
             smart.dispose();
 
         });
@@ -368,7 +372,7 @@ class Builder3D {
     async loadGLTF(location, onLoad, addToScene = true) {
         const scope = this;
         await scope.gltfLoader.loadAsync(location, onprogress = function(xhr) {
-            console.log((xhr.loaded / xhr.total) * 100);
+            //console.log((xhr.loaded / xhr.total) * 100);
         }).then(async function(gltf) {
             if (addToScene)
                 scope.scene.add(gltf.scene);

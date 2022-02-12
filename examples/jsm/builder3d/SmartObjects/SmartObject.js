@@ -13,7 +13,9 @@ class SmartObject {
         this.isActive = true;
         this.setupVars();
 
-        this.testMixer = new THREE.AnimationMixer(this.model);
+        //this.testMixer = new THREE.AnimationMixer(this.model);
+        console.log(gltf);
+        this.animationControllers = gltf.animationControllers == null ? [] : gltf.animationControllers;
         this.testing();
 
         // try not using traverse, instead use gltf.nodes.foreach. reason: When turning off objects, to avoid raycast colision, objects are being removed from main scene into a "hidden scene", since their parent gets removed, they wont be affected by traverse
@@ -72,32 +74,12 @@ class SmartObject {
         }
     }
     testing() {
-        console.log(this.gltf);
-        if (this.gltf.animationClips.length > 0) {
-            console.log("chc2");
-            console.log(this.gltf.animationClips);
-            const animations = this.gltf.animationClips;
 
-            console.log(this.model);
-            console.log(this.testMixer);
-
-            let action1 = this.testMixer.clipAction(animations[0]);
-            //let action2 = mixer.clipAction(animations[1]);
-            //let action3 = mixer.clipAction(animations[2]);
-
-            action1.enabled = true;
-            action1.setEffectiveTimeScale(1);
-            action1.setEffectiveWeight(1);
-
-            action1.play();
-
-
-            //let actions = [action1, action2, action3];
-
-            //activateAllActions();
-
-            //animate();
+        
+        if (this.gltf.animationControllers != null){
+            console.log(this.gltf.animationControllers);
         }
+
     }
     testingSetWeight(action, weight) {
 
@@ -192,8 +174,11 @@ class SmartObject {
             this.components.forEach(function(comp) {
                 comp.tick(clockDelta);
             });
+            this.animationControllers.forEach(function (anim) {
+                anim.update(clockDelta);
+            });
             this.smartTick(clockDelta);
-            this.testMixer.update(clockDelta);
+            //this.testMixer.update(clockDelta);
         }
     }
 

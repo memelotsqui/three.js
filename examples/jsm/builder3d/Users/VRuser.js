@@ -38,7 +38,7 @@ class VRuser {
         layers.enable(30);
         this.control0 = new OculusController(0, this.user, builder, layers.mask);
         this.control1 = new OculusController(1, this.user, builder, layers.mask);
-        console.log(this.control0);
+        //console.log(this.control0);
 
         this.control0.addEventListener("connected", function(evt) {
             console.log(evt);

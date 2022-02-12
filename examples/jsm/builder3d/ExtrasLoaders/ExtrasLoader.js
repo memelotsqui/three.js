@@ -28,7 +28,6 @@ class ExtrasLoader {
                     if (gltf.userData.smartObject.smartType === "space") {
                         customData.affectSceneEnvironment = customData.affectSceneEnvironment === undefined ? true : customData.affectSceneEnvironment;
                         customData.addMeshBackground = customData.addMeshBackground === undefined ? true : customData.addMeshBackground;
-                        console.log(customData.addMeshBackground);
                     }
                     if (gltf.userData.smartObject.smartType === "object") {}
                     if (gltf.userData.smartObject.smartType === "character") {}
@@ -38,7 +37,6 @@ class ExtrasLoader {
             const affectSceneEnvironment = customData.affectSceneEnvironment === undefined ? false : customData.affectSceneEnvironment;
             const addMeshBackground = customData.addMeshBackground === undefined ? false : customData.addMeshBackground;
 
-            console.log(addMeshBackground);
             const mergeMeshes = false;
             //const mergeMeshes = customData.mergeMeshes === undefined ? true : customData.mergeMeshes;
             const startMerged = customData.startMerged === undefined ? true : customData.startMerged;
@@ -83,11 +81,7 @@ class ExtrasLoader {
 
             // -BACKGROUND
             if (model.userData.background !== undefined) {
-                console.log("up to here");
                 if (model.userData.background.cubeTexture !== undefined) {
-                    console.log("enters");
-                    console.log(addMeshBackground);
-                    console.log(model.userData.background);
                     let backgroundMap = gltf.cubeTextures[model.userData.background.cubeTexture.index];
                     // -ON SCENE
                     if (affectSceneEnvironment) {
@@ -95,10 +89,6 @@ class ExtrasLoader {
                         scope.scene.background.needsUpdate = true;
                         scope.scene.background.encoding = THREE.sRGBEncoding;
                     }
-                    // if (addMeshBackground && model.userData.background.cubeTexture.node !== undefined) {
-                    //     const scale = model.userData.background.cubeTexture.scale === undefined ? 1 : model.userData.background.cubeTexture.scale;
-                    //     scope.rules.setSkybox(backgroundMap, scale);
-                    // }
                     if (addMeshBackground) {
                         const scale = model.userData.background.cubeTexture.scale === undefined ? 1 : model.userData.background.cubeTexture.scale;
                         scope.rules.setSkybox(backgroundMap, scale);
@@ -122,17 +112,12 @@ class ExtrasLoader {
                     extras.navMesh.material = new THREE.MeshBasicMaterial();
                 }
             }
-            //SETUP MATERIAL ENVIRONMENT
-            gltf.materials.forEach((m) => {
-                if (m.constructor.name == "MeshStandardMaterial") {
-                    if (m.envMap === null)
-                        m.envMap = extras.environmentMap;
-                }
-            });
+            
 
             // ASSIGN MESH AND GROUP CONNECTIONS CONNECTIONS TO NODES
 
             // INTIAL NODES SETUP
+            let origMats = [];
             model.traverse((o) => {
 
                 if (!o.isMesh && !o.isGroup) {
@@ -142,11 +127,35 @@ class ExtrasLoader {
                         if (o.material !== undefined) {
                             // STORE ORIGINAL MATERIAL IN CASE OF CHANGED
                             o.userData.originalMaterial = o.material;
+                            if (o.material.length === undefined){
+                                let newMat = true;
+                                for (let i=0;i< origMats.length;i++){
+                                    if (origMats[i] === o.material){
+                                        newMat = false;
+                                        break;
+                                    }
+                                }
+                                if (newMat){
+                                    origMats.push(o.material);
+                                }
+                            } else {
+                                for (var i = 0; i < o.material.length; i++) {
+                                    let newMat = true;
+                                    for (let i=0;i< origMats.length;i++){
+                                        if (origMats[i] === o.material[i]){
+                                            newMat = false;
+                                            break;
+                                        }
+                                    }
+                                    if (newMat){
+                                        origMats.push(o.material[i]);
+                                    }
+                                }
+                            }
                         }
                         if (o.parent.isGroup) {
                             // MULTI MESH - GLTF IMPORTER CREATES GROUPED MESHES, SO THE ORIGINAL OBJECT IS 2 PARENTS ABOVE
                             let tarObj = o.parent.parent;
-                            console.log(o.parent);
                             // set "gameObject" as target in mesh
                             o.userData.gameObject = tarObj;
                             // set "mesh" as target in gameObject
@@ -178,12 +187,21 @@ class ExtrasLoader {
 
                             // SINGLE MESH WITH SUBMESHES
                             if (o.userData.submeshes !== undefined) {
-                                setSubmeshGroups(o);
+                                //setSubmeshGroups(o);
                             }
                         }
                     }
                 }
 
+            });
+            gltf.materials = origMats;
+
+            //SETUP MATERIAL ENVIRONMENT
+            gltf.materials.forEach((m) => {
+                if (m.constructor.name == "MeshStandardMaterial") {
+                    if (m.envMap === null)
+                        m.envMap = extras.environmentMap;
+                }
             });
 
             //SECONDARY SETUP
@@ -294,14 +312,55 @@ class ExtrasLoader {
 
             // COMBINED BUFFER GEOMETRY
             function setSubmeshGroups(tarMesh) {
-                let data = tarMesh.userData.submeshes;
-                let mats = [];
+                //let data = tarMesh.userData.submeshes;
+                //let mats = [];
+                //console.log(tarMesh.material);
+                //console.log(tarMesh.material[0]);
 
-                for (var i = 0; i < data.length; i++) {
-                    mats[i] = (gltf.materials[data[i].material]);
-                    tarMesh.geometry.addGroup(data[i].start, data[i].count, i);
-                }
-                tarMesh.material = mats;
+                //let simpleMat = tarMesh.material[0].clone();
+
+                //console.log(simpleMat);
+                // console.log("here");
+                // console.log(tarMesh);
+
+                // const materials = tarMesh.material;
+                // let newMaterials = [];
+                // let addMaterials = [];
+
+                // for (let i =0; i < materials.length;i++){
+                //     let newMat = true;
+                //     for (let j =0; j < newMaterials.length;j++){
+                //         if (newMaterials[j] === addMaterials[j]){
+                //             addMaterials.push(newMaterials[j])
+                //             newMat = false;
+                //         }
+                //     }
+                    
+                //     if (newMat){
+                        
+                //         const mat = materials[i].clone();
+                //         console.log(mat);
+                //         newMaterials.push(mat);
+                //         addMaterials.push(mat);
+                //     }      
+                // }
+                // console.log(addMaterials);
+                //tarMesh.material = addMaterials;
+
+
+                //tarMesh.geometry.groups = [];
+                //tarMesh.material = simpleMat; 
+
+                //console.log(tarMesh.geometry);
+                //console.log(tarMesh);
+
+                //for (var i = 0; i < data.length; i++) {
+                    //mats[i] = (gltf.materials[data[i].material].clone());
+                    //mats[i].envMap = extras.environmentMap;
+                    //console.log( mats[i].envMap);
+                    //tarMesh.geometry.addGroup(data[i].start, data[i].count, i);
+                //}
+                //tarMesh.material = mats;
             }
 
             extras.dispose = function() {
