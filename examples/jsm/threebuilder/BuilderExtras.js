@@ -68,6 +68,7 @@ class BuilderExtras {
 
 
         //INITIAL SETUP MESHES AND OBJECTS
+        let origMats = [];
         scene.traverse((o) => {
 
             if (!o.isMesh && !o.isGroup) {
@@ -78,6 +79,31 @@ class BuilderExtras {
                     if (o.material !== undefined) {
                         // save its original material in case user wants to switch quality later, not yet used
                         o.userData.originalMaterial = o.material;
+                        if (o.material.length === undefined){
+                            let newMat = true;
+                            for (let i=0;i< origMats.length;i++){
+                                if (origMats[i] === o.material){
+                                    newMat = false;
+                                    break;
+                                }
+                            }
+                            if (newMat){
+                                origMats.push(o.material);
+                            }
+                        } else {
+                            for (var i = 0; i < o.material.length; i++) {
+                                let newMat = true;
+                                for (let i=0;i< origMats.length;i++){
+                                    if (origMats[i] === o.material[i]){
+                                        newMat = false;
+                                        break;
+                                    }
+                                }
+                                if (newMat){
+                                    origMats.push(o.material[i]);
+                                }
+                            }
+                        }
                     }
                     if (o.parent.isGroup) {
                         // multi mesh
@@ -97,9 +123,9 @@ class BuilderExtras {
                     } else {
                         // single mesh
                         // if submeshes is defined
-                        if (o.userData.submeshes !== undefined) {
-                            setSubmeshGroups(o);
-                        }
+                        // if (o.userData.submeshes !== undefined) {
+                        //     setSubmeshGroups(o);
+                        // }
                         let tarObj = o.parent;
                         o.userData.gameObject = tarObj;
                         tarObj.userData.mesh = o;
@@ -112,6 +138,7 @@ class BuilderExtras {
             }
 
         });
+        gltf.materials = origMats;
 
         //SECONDARY SETUP
 
@@ -163,7 +190,6 @@ class BuilderExtras {
                 if (o.userData.mirror.envMap !== undefined) {
                     mirrorMat = stdMirrorMaterial.clone();
                     let reflection = gltf.cubeTextures[o.userData.mirror.envMap];
-                    console.log("jelo mirror");
                     reflection.minFilter = THREE.LinearFilter;
                     reflection.magFilter = THREE.LinearFilter;
                     reflection.encoding = THREE.sRGBEncoding;
@@ -198,8 +224,11 @@ class BuilderExtras {
 
         //CONVERT MATERIALS
         let changeAll = quality == 0 ? true : false;
-        if (quality < 2)
+        if (quality < 2){
             ConvertMaterials.convertMaterialsToType(gltf, THREE.MeshLambertMaterial, changeAll);
+            const light = new THREE.AmbientLight( 0xc8c8c8 ); // soft white light
+            scene.add( light );
+        }
 
         //NAVMESH
         if (gltf.userData.navMesh !== undefined) {
@@ -221,10 +250,9 @@ class BuilderExtras {
         // OFFSET SECONDARY UVS
 
         // COMBINED BUFFER GEOMETRY
-        function setSubmeshGroups(tarMesh) {
+        function setSubmeshGroups(tarMesh) {    // now included in gltf loader
             let data = tarMesh.userData.submeshes;
             let mats = [];
-            console.log("jadasjkndkasjndjkasdnk");
             for (var i = 0; i < data.length; i++) {
                 mats[i] = (gltf.materials[data[i].material]);
                 tarMesh.geometry.addGroup(data[i].start, data[i].count, i);

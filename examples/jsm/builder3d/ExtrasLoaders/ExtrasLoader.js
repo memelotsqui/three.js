@@ -37,8 +37,8 @@ class ExtrasLoader {
             const affectSceneEnvironment = customData.affectSceneEnvironment === undefined ? false : customData.affectSceneEnvironment;
             const addMeshBackground = customData.addMeshBackground === undefined ? false : customData.addMeshBackground;
 
-            const mergeMeshes = false;
-            //const mergeMeshes = customData.mergeMeshes === undefined ? true : customData.mergeMeshes;
+            //const mergeMeshes = false;
+            const mergeMeshes = customData.mergeMeshes === undefined ? true : customData.mergeMeshes;
             const startMerged = customData.startMerged === undefined ? true : customData.startMerged;
 
             let extras = {};
@@ -93,7 +93,7 @@ class ExtrasLoader {
                         const scale = model.userData.background.cubeTexture.scale === undefined ? 1 : model.userData.background.cubeTexture.scale;
                         scope.rules.setSkybox(backgroundMap, scale);
                     }
-                    
+
                 }
             }
 
@@ -112,7 +112,7 @@ class ExtrasLoader {
                     extras.navMesh.material = new THREE.MeshBasicMaterial();
                 }
             }
-            
+
 
             // ASSIGN MESH AND GROUP CONNECTIONS CONNECTIONS TO NODES
 
@@ -127,27 +127,27 @@ class ExtrasLoader {
                         if (o.material !== undefined) {
                             // STORE ORIGINAL MATERIAL IN CASE OF CHANGED
                             o.userData.originalMaterial = o.material;
-                            if (o.material.length === undefined){
+                            if (o.material.length === undefined) {
                                 let newMat = true;
-                                for (let i=0;i< origMats.length;i++){
-                                    if (origMats[i] === o.material){
+                                for (let i = 0; i < origMats.length; i++) {
+                                    if (origMats[i] === o.material) {
                                         newMat = false;
                                         break;
                                     }
                                 }
-                                if (newMat){
+                                if (newMat) {
                                     origMats.push(o.material);
                                 }
                             } else {
                                 for (var i = 0; i < o.material.length; i++) {
                                     let newMat = true;
-                                    for (let i=0;i< origMats.length;i++){
-                                        if (origMats[i] === o.material[i]){
+                                    for (let i = 0; i < origMats.length; i++) {
+                                        if (origMats[i] === o.material[i]) {
                                             newMat = false;
                                             break;
                                         }
                                     }
-                                    if (newMat){
+                                    if (newMat) {
                                         origMats.push(o.material[i]);
                                     }
                                 }
@@ -267,7 +267,7 @@ class ExtrasLoader {
                         console.log("No mesh for mirror found in object: " + o.name + " skipping mirror creation");
                     }
                 }
-                
+
                 if (o.userData.textContainer !== undefined) {
                     extras.textContainers.push(new TextContainer(o, this.rules))
                 }
@@ -298,7 +298,9 @@ class ExtrasLoader {
 
 
             //BATCHING
+
             if (mergeMeshes) {
+                console.log("asdasdasdas");
                 extras.batchGeom = new BatchCombine(gltf, startMerged);
             }
 
@@ -335,9 +337,9 @@ class ExtrasLoader {
                 //             newMat = false;
                 //         }
                 //     }
-                    
+
                 //     if (newMat){
-                        
+
                 //         const mat = materials[i].clone();
                 //         console.log(mat);
                 //         newMaterials.push(mat);
@@ -355,10 +357,10 @@ class ExtrasLoader {
                 //console.log(tarMesh);
 
                 //for (var i = 0; i < data.length; i++) {
-                    //mats[i] = (gltf.materials[data[i].material].clone());
-                    //mats[i].envMap = extras.environmentMap;
-                    //console.log( mats[i].envMap);
-                    //tarMesh.geometry.addGroup(data[i].start, data[i].count, i);
+                //mats[i] = (gltf.materials[data[i].material].clone());
+                //mats[i].envMap = extras.environmentMap;
+                //console.log( mats[i].envMap);
+                //tarMesh.geometry.addGroup(data[i].start, data[i].count, i);
                 //}
                 //tarMesh.material = mats;
             }

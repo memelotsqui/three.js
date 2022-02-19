@@ -69,7 +69,8 @@ import {
 } from 'three';
 
 import {
-    AnimationController, AnimationState
+    AnimationController,
+    AnimationState
 } from '../builder3d/AnimationController/AnimationController.js';
 
 class GLTFLoader extends Loader {
@@ -1962,8 +1963,6 @@ class CustomCubicSplineInterpolant extends Interpolant {
 
         this.weights = weights;
         this.tangents = tangents;
-        //console.log(sampleSize);
-        //console.log(this.values);
 
     }
 
@@ -1998,12 +1997,9 @@ CustomCubicSplineInterpolant.prototype.interpolate_ = function(i1, t0, t, t1) {
     const result = this.resultBuffer;
     const values = this.sampleValues;
     const tangents = this.tangents;
-    //working here
-    //console.log(tangents);
+
     const weights = this.weights;
     const stride = this.valueSize;
-
-    //console.log(this.valueSize);
 
     const stride2 = stride * 2;
     const stride3 = stride * 3;
@@ -2013,9 +2009,6 @@ CustomCubicSplineInterpolant.prototype.interpolate_ = function(i1, t0, t, t1) {
     const p = (t - t0) / td;
     const pp = p * p;
     const ppp = pp * p;
-
-    //const offset1 = i1 * stride3;
-    //const offset0 = offset1 - stride3;
 
     const offset1 = i1;
     const offset0 = i1 - 1;
@@ -2802,15 +2795,15 @@ class GLTFParser {
 
                 const defs = this.json.extras !== undefined ? this.json.extras[type + 's'] || [] : [];
 
-                if (type === "animationController"){
+                if (type === "animationController") {
 
                     const values = [];
 
-                    defs.map(function(def,index){
+                    defs.map(function(def, index) {
 
-                        def.nodes.map(function(node){
+                        def.nodes.map(function(node) {
 
-                            values.push ({index,node});
+                            values.push({ index, node });
 
                         })
 
@@ -2818,13 +2811,12 @@ class GLTFParser {
 
                     dependencies = Promise.all(values.map(function(val) {
 
-                        return parser.getDependency(type, val.index,val.node);
-                        
+                        return parser.getDependency(type, val.index, val.node);
+
 
                     }));
 
-                }
-                else{
+                } else {
 
                     dependencies = Promise.all(defs.map(function(def, index) {
 
@@ -4142,12 +4134,11 @@ class GLTFParser {
 
             const keyframeTrack = animationClipDef.keyframeTracks[i];
             const trackName = keyframeTrack.trackName;
+
             const time = keyframeTrack.TIME;
             const value = keyframeTrack.VALUE;
             const weight = keyframeTrack.WEIGHT;
             const tangent = keyframeTrack.TANGENT;
-
-
 
             pendingTrackNames.push(trackName);
             pendingTimesAccessors.push(this.getDependency('accessor', time));
@@ -4174,29 +4165,21 @@ class GLTFParser {
             for (let i = 0, il = trackNames.length; i < il; i++) {
 
                 const trackName = trackNames[i];
-                const timeAccessor = timeAccessors[i];
-                const valueAccessor = valueAccessors[i];
-                const weightAccessor = weightAccessors[i];
-                const tangentAccessor = tangentAccessors[i];
+                const timeAccessor = timeAccessors[i].array;
+                const valueAccessor = valueAccessors[i].array;
+                const weightAccessor = weightAccessors[i].array;
+                const tangentAccessor = tangentAccessors[i].array;
 
                 const track = new NumberKeyframeTrack(
                     trackName,
-                    timeAccessor.array,
-                    valueAccessor.array,
+                    timeAccessor,
+                    valueAccessor,
                     INTERPOLATION.CUBICCUSTOM
                 );
 
-                //console.log(track);
-                //console.log(this.values);
                 track.createInterpolant = function InterpolantFactoryMethodGLTFCubicSpline(result) {
-                    //console.log('tada');
-                    //     // A CUBICSPLINE keyframe in glTF has three output values for each input value,
-                    //     // representing inTangent, splineVertex, and outTangent. As a result, track.getValueSize()
-                    //     // must be divided by three to get the interpolant's sampleSize argument.
-                    //     console.log(result);
-                    //console.log(this.times.length + "    " + this.values.length);
-                    //return new CustomCubicSplineInterpolant(this.times, this.values, this.getValueSize() / 3, weightAccessor.array, tangentAccessor.array, result);
-                    return new CustomCubicSplineInterpolant(this.times, this.values, this.getValueSize(), weightAccessor.array, tangentAccessor.array, result);
+
+                    return new CustomCubicSplineInterpolant(this.times, this.values, this.getValueSize(), weightAccessor, tangentAccessor, result);
 
                 };
 
@@ -4222,7 +4205,7 @@ class GLTFParser {
         const parser = this;
 
         const additveBlend = animLayerDef.blendMode == null || "override" ? false : true;
-        
+
         const layer = animationController.createLayer(
             animLayerDef.name === undefined ? "" : animLayerDef.name,
             animLayerDef.weight === undefined ? 1.0 : animLayerDef.weight,
@@ -4231,13 +4214,13 @@ class GLTFParser {
         // create animation layers states
         const pendingStates = [];
         const transitionsDefs = animLayerDef.transitions;
-        
+
         for (let k = 0, kl = animLayerDef.states.length; k < kl; k++) {
             const stateDef = animLayerDef.states[k];
-            pendingStates.push(parser.assignAnimationState(stateDef,layer));
+            pendingStates.push(parser.assignAnimationState(stateDef, layer, animationController));
         }
 
-        return Promise.all(pendingStates).then(function(states){
+        return Promise.all(pendingStates).then(function(states) {
             if (animLayerDef.initialState != null)
                 layer.setInitialState(states[animLayerDef.initialState]);
 
@@ -4256,12 +4239,11 @@ class GLTFParser {
                 if (transitionDef.to >= 0) toState = states[transitionDef.to];
 
                 const transition = fromState.createTransition(toState, transitionDef.params);
-                if (transitionDef.conditions != null){
+                if (transitionDef.conditions != null) {
                     for (let l = 0, ll = transitionDef.conditions.length; l < ll; l++) {
-                        const condition = transitionDef.conditions[l];   
+                        const condition = transitionDef.conditions[l];
                         const paramString = Object.getOwnPropertyNames(animationController.params)[condition.param];
-                        console.log(condition);
-                        transition.addNewCondition(paramString, condition.cond,condition.value);
+                        transition.addNewCondition(paramString, condition.cond, condition.value);
                     }
                 }
             }
@@ -4273,21 +4255,39 @@ class GLTFParser {
 
     }
 
-    assignAnimationState(animStateDef, animationLayer) {
+    assignAnimationState(animStateDef, animationLayer, animationController) {
 
         const parser = this;
 
-        return parser.getDependency('animationClip', animStateDef.clip).then(function(clip) {
+        if (animStateDef.clip == null) {
+            const animState = animationLayer.createState(animStateDef.name);
+            parser.assignStateProperties(animState, animStateDef, animationController);
+            return animState;
+        } else {
+            return parser.getDependency('animationClip', animStateDef.clip).then(function(clip) {
 
-            const loop = parser.json.extras.animationClips[animStateDef.clip].loop;
-            return animationLayer.createState(
-                clip,
-                animStateDef.speed == null ? 1.0 : animStateDef.speed,
-                loop,
-                animStateDef.name);
+                const loop = parser.json.extras.animationClips[animStateDef.clip].loop;
+                const animState = animationLayer.createState(
+                    animStateDef.name,
+                    animStateDef.offset,
+                    animStateDef.speed,
+                    loop,
+                    clip
+                );
+                parser.assignStateProperties(animState, animStateDef, animationController);
+                return animState;
 
-        }).catch(err => { console.error(err) });
+            }).catch(err => { console.error(err) });
+        }
+    }
 
+    assignStateProperties(animState, animStateDef, animationController) {
+        if (animStateDef.multParam != null)
+            animState.setSpeedMultiplierParameter(Object.getOwnPropertyNames(animationController.params)[animStateDef.multParam]);
+        if (animStateDef.motionParam != null)
+            animState.setMotionParameter(Object.getOwnPropertyNames(animationController.params)[animStateDef.motionParam]);
+        if (animStateDef.offsetParam != null)
+            animState.setOffsetParameter(Object.getOwnPropertyNames(animationController.params)[animStateDef.offsetParam])
     }
 
     loadAnimationController(animationControllerIndex, nodeIndex) {
@@ -4296,27 +4296,27 @@ class GLTFParser {
         const json = this.json.extras;
 
         const animationControllerDef = json.animationControllers[animationControllerIndex]
-        
+
         const name = animationControllerDef.name;
 
         const parameters = animationControllerDef.parameters;
         const layersDef = animationControllerDef.layers;
 
-        return parser.getDependency('node',nodeIndex).then(function (node){
+        return parser.getDependency('node', nodeIndex).then(function(node) {
 
             const animationController = new AnimationController(name, node, parameters);
 
             const pendingLayers = [];
             for (let j = 0, jl = layersDef.length; j < jl; j++) {
-    
-                pendingLayers.push(parser.assignAnimationLayer(layersDef[j],animationController));
+
+                pendingLayers.push(parser.assignAnimationLayer(layersDef[j], animationController));
 
             }
-            return Promise.all(pendingLayers).then(function(layers){
+            return Promise.all(pendingLayers).then(function(layers) {
 
                 return animationController;
 
-            }).catch (err => { console.error(err) })
+            }).catch(err => { console.error(err) })
         })
     }
 

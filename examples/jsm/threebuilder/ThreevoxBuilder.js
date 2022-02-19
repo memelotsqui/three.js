@@ -30,8 +30,6 @@ class ThreevoxBuilder {
 
         this.quality = quality < 0 ? defaultQuality : quality;
 
-        console.log(this.quality);
-
         let container, scene, percentage, controls, raycaster, mouse, touchHammer;
         let statsVR;
         let threev_interactables;
@@ -145,37 +143,18 @@ gl_FragColor = vec4(color1.rgb + color2.rgb, 1.0);}`;
                 console.log('There was an error loading ' + url);
             };
 
-            console.log("hello world");
-            console.log(scope.renderer);
             let gltf_loader = new GLTFLoader(main_loading_manager);
 
             const ktxLoader = new KTX2Loader()
                 .setTranscoderPath('js/libs/basis/')
                 .detectSupport(scope.renderer);
 
-            //console.log(ktxLoader);
             gltf_loader.setKTX2Loader(ktxLoader);
-
-            console.log(ktxLoader);
-            // ktxLoader.load('img_0.ktx2', function(texture) {
-
-            //     var material = new THREE.MeshStandardMaterial({ map: texture });
-
-            // }, function() {
-
-            //     console.log('onProgress');
-
-            // }, function(e) {
-
-            //     console.error(e);
-
-            // });
-
-            console.log(location+'/gltf.gltf');
 
             gltf_loader.load(location + '/gltf.gltf',
                 function(gltf) {
-                    console.log(gltf);
+                    if (debug)
+                        console.log(gltf);
                     scope.extras = new BuilderExtras(gltf, location, scope.scene, scope.renderer, true, false, scope.quality); // IMPROVE
                     scope.scene.add(gltf.scene);
                     if (debug) {
@@ -201,7 +180,6 @@ gl_FragColor = vec4(color1.rgb + color2.rgb, 1.0);}`;
             renderer.setClearColor(0xFFFFFF, 0);
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(container.clientWidth, container.clientHeight);
-            console.log(renderer.outputEncoding);
             //renderer.outputEncoding = THREE.LinearEncoding;
             //renderer.outputEncoding = THREE.RGBADepthPacking;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -626,7 +604,6 @@ gl_FragColor = vec4(color1.rgb + color2.rgb, 1.0);}`;
         }
 
         function setupOrbitControls() {
-            console.log(scope.extras.mainCamera);
             controls = new OrbitControls(scope.extras.mainCamera, scope.renderer.domElement, scope.onControlsChange);
             if (scope.extras.gltf.userData.orbitControls !== undefined) {
                 controls.target.set(scope.extras.gltf.userData.orbitControls.target[0], scope.extras.gltf.userData.orbitControls.target[1], scope.extras.gltf.userData.orbitControls.target[2]);
@@ -786,14 +763,16 @@ gl_FragColor = vec4(color1.rgb + color2.rgb, 1.0);}`;
             for (var j = 0; j < clipObjects.length; j++) {
                 let mesh = clipObjects[j].userData.mesh;
                 if (mesh !== undefined) {
-                    if (mesh.material.length == undefined) {
-                        mesh.material = createStencilMaterial(mesh.material);
-                    } else {
-                        for (var i = 0; i < mesh.material.length; i++) {
-                            mesh.material[i] = createStencilMaterial(mesh.material[i]);
+                    if (mesh.material !== undefined) {
+                        if (mesh.material.length == undefined) {
+                            mesh.material = createStencilMaterial(mesh.material);
+                        } else {
+                            for (var i = 0; i < mesh.material.length; i++) {
+                                mesh.material[i] = createStencilMaterial(mesh.material[i]);
+                            }
                         }
+                        clipPlanesObjects.push(createStencil(mesh.geometry, clipPlanes, mesh));
                     }
-                    clipPlanesObjects.push(createStencil(mesh.geometry, clipPlanes, mesh));
                 }
             }
         }

@@ -14,7 +14,6 @@ class BatchCombine {
 
     }
     displayBatchGeometry(display) {
-        if (!display) display = true;
         for (var i = 0; i < this.data.originalMeshes.length; i++) {
             this.data.originalMeshes[i].visible = !display;
         }

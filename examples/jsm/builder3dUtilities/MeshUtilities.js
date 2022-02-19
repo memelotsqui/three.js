@@ -2,6 +2,7 @@ import * as THREE from '../../../build/three.module.js';
 import * as BufferGeometryUtils from '../utils/BufferGeometryUtils.js';
 
 class MeshUtilities {
+    // BATCHING: IS IT CALLED FOR ALL OBJECTS THAT SHARE THE SAME MATERIAL?, OR ONLY FOR THE CHILDS OF TARGET OBJECT
     static CombineChilds(object, batching) {
         let materialMeshes = [];
 
@@ -153,7 +154,7 @@ class MeshUtilities {
             }
         }
 
-        const geometry = BufferGeometryUtils.BufferGeometryUtils.mergeBufferGeometries(geometries, true);
+        const geometry = BufferGeometryUtils.mergeBufferGeometries(geometries, true);
         geometry.computeBoundingSphere();
 
         const mesh = new THREE.Mesh(geometry, material);

@@ -45,7 +45,6 @@ class BatchCombine {
                                         meshSameMaterial[j].push(o);
                                 }
                             }
-                            console.log(newMat);
                             if (newMat === true){
                                 origMats.push(o.material);
                                 meshSameMaterial[origMats.length-1] = [];
@@ -89,8 +88,6 @@ class BatchCombine {
         }
 
         function CombineMeshes(meshArray) {
-
-            console.log(meshArray.length);
 
             if (meshArray.length == 0) return null;
             if (meshArray.length == 1) return meshArray[0];
