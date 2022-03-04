@@ -1,4 +1,3 @@
-import * as THREE from '../../../../build/three.module.js';
 class SmartObject {
     constructor(gltf, customData, builder, onLoad) {
         //this.builder = builder;

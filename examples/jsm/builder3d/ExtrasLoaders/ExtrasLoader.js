@@ -1,4 +1,4 @@
-import * as THREE from '../../../../build/three.module.js';
+import * as THREE from 'three';
 import { Reflector } from '../../objects/Reflector.js';
 import { BatchCombine } from '../../builder3dUtilities/BatchCombine.js';
 import { MeshUtilities } from '../../builder3dUtilities/MeshUtilities.js';
@@ -293,7 +293,7 @@ class ExtrasLoader {
             //CONVERT MATERIALS
             let changeAll = scope.quality == 0 ? true : false;
             if (scope.quality < 2)
-                ConvertMaterials.convertMaterialsToType(gltf, THREE.MeshLambertMaterial, changeAll);
+                ConvertMaterials.convertMaterialsToType(gltf, THREE.MeshBasicMaterial, changeAll);
 
 
 

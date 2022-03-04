@@ -1,4 +1,4 @@
-import * as THREE from '../../../../build/three.module.js';
+import * as THREE from 'three';
 import { XRControllerModelFactory } from '../../webxr/XRControllerModelFactory.js';
 import { XRHandModelFactory } from '../../webxr/XRHandModelFactory.js';
 import { OculusHandModel } from '../../webxr/OculusHandModel.js';

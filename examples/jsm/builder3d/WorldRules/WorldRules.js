@@ -1,4 +1,4 @@
-import * as THREE from '../../../../build/three.module.js';
+import * as THREE from 'three';
 import { VRuser } from '../Users/VRuser.js';
 import { PCuser } from '../Users/PCuser.js';
 import { ExtrasLoader } from '../ExtrasLoaders/ExtrasLoader.js'

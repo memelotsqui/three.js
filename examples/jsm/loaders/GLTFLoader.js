@@ -58,7 +58,6 @@ import {
     //custom
     CubeTexture,
     CubeReflectionMapping,
-    AnimationMixer,
     //end custom
     TriangleFanDrawMode,
     TriangleStripDrawMode,
@@ -69,8 +68,7 @@ import {
 } from 'three';
 
 import {
-    AnimationController,
-    AnimationState
+    AnimationController
 } from '../builder3d/AnimationController/AnimationController.js';
 
 class GLTFLoader extends Loader {
@@ -2000,9 +1998,6 @@ CustomCubicSplineInterpolant.prototype.interpolate_ = function(i1, t0, t, t1) {
 
     const weights = this.weights;
     const stride = this.valueSize;
-
-    const stride2 = stride * 2;
-    const stride3 = stride * 3;
 
     const td = t1 - t0;
 
@@ -4247,7 +4242,6 @@ class GLTFParser {
                     }
                 }
             }
-
             return layer;
 
         }).catch(err => { console.error(err) });
@@ -4267,6 +4261,7 @@ class GLTFParser {
             return parser.getDependency('animationClip', animStateDef.clip).then(function(clip) {
 
                 const loop = parser.json.extras.animationClips[animStateDef.clip].loop;
+                console.log(loop);
                 const animState = animationLayer.createState(
                     animStateDef.name,
                     animStateDef.offset,
@@ -4308,7 +4303,6 @@ class GLTFParser {
 
             const pendingLayers = [];
             for (let j = 0, jl = layersDef.length; j < jl; j++) {
-
                 pendingLayers.push(parser.assignAnimationLayer(layersDef[j], animationController));
 
             }

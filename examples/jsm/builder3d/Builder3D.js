@@ -1,6 +1,6 @@
 import { GLTFLoader } from '../loaders/GLTFLoader.js';
 import { KTX2Loader } from '../loaders/KTX2Loader.js';
-import * as THREE from '../../../build/three.module.js';
+import * as THREE from 'three';
 import { BuilderButton } from './BuilderButton.js';
 import StatsVR from '../stats/statsvr.js';
 import Stats from '../libs/stats.module.js'
@@ -17,7 +17,7 @@ class Builder3D {
         const clock = new THREE.Clock();
         this.xrSession = null;
 
-        const ktx2TranscoderPath ='https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/libs/basis/';
+        const ktx2TranscoderPath = 'https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/libs/basis/';
 
         this.builderButton = builderButton;
         if (builderButton == null) {
@@ -43,7 +43,7 @@ class Builder3D {
         this.controls = null;
         this.gltfLoader = new GLTFLoader();
 
-        
+
 
 
         this.currentPage = "";
@@ -118,14 +118,14 @@ class Builder3D {
                 let ktx2loader = new KTX2Loader(scope.gltfLoader.manager)
                     .setTranscoderPath(ktx2TranscoderPath)
                     .detectSupport(renderer);
-                
+
                 scope.gltfLoader.setKTX2Loader(ktx2loader);
 
                 scope.renderer = renderer;
                 scope.rules = new WorldRules(scope);
                 //testingCode();
 
-                
+
 
 
                 if (loadIndex === true) {
@@ -136,6 +136,7 @@ class Builder3D {
         }
 
         function testingCode() {
+            console.log("TESTING MODE");
             //console.log(scope.renderer.physicallyCorrectLights);
             scope.renderer.physicallyCorrectLights = true;
             //let hemiLight = new THREE.HemisphereLight(0xddeeff, 0x0f0e0d, 0.02);
@@ -144,7 +145,7 @@ class Builder3D {
 
 
             const bulbGeometry = new THREE.SphereGeometry(0.02, 16, 8);
-            let bulbLight = new THREE.PointLight(0xffee88, 20, 100, 2);
+            let bulbLight = new THREE.PointLight(0xffee88, 20, 10, 2);
             bulbLight.castShadow = true;
 
             let bulbMat = new THREE.MeshStandardMaterial({

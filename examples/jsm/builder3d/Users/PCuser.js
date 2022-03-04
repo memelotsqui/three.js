@@ -1,4 +1,4 @@
-import * as THREE from '../../../../build/three.module.js';
+import * as THREE from 'three';
 import { OrbitControls } from '../../controls/OrbitControlsClickMove.js';
 import '../../libs/hammer.min.js';
 class PCuser {
