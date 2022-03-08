@@ -7,7 +7,6 @@ import {
 class AnimationTransition { //transitions bewtween 2 states Maybe transitions can go in "animation state" step of json
     constructor(animationController, fromState, targetState, params) {
         params = params == null ? {} : params;
-        console.log(params);
 
         // SHOULD THE NEXT STATE WAIT ON A SPECIFIC TIME TO EXIT?
         this.hasExitTime = params.exitTime == null ? false : true;
@@ -158,12 +157,10 @@ class AnimationState {
         if (this.animationAction != null) {
             this.animationAction.stop();
         }
-        console.log("called stop on: " + this.name);
         this.setWeight(0);
     }
     play(offsetStart = 0) {
         this._updateEffectiveWeight();
-        console.log(this._stateWeight);
         if (this.animationAction != null) {
             if (this.fixedMotion === false) {
 
@@ -180,75 +177,17 @@ class AnimationState {
             }
         }
     }
+    pause(value){
+        if (this.animationAction != null) {
+            this.animationAction.paused = value;
+        }
+    }
     createTransition(targetState, params) {
         const transition = new AnimationTransition(this.animationContoller, this, targetState, params);
         this.transitions.push(transition);
         return transition;
     }
-
-    _update(clockDelta, isNextState, isDropState) {
-        this._updateEffectiveWeight()
-        if (this.animationAction != null) {
-
-            // IS SPEED CONTROLLERD BY ANIMATION CONTROLLER PARAMETERS?
-            if (this.multParamString != "")
-                this.animationAction.timeScale = this.speed * this.animationContoller.params[this.multParamString];
-
-            // SECTION TO UPDATE TRANSITIONS CHECKS
-            if (isDropState === false || isDropState == null) {
-                // ANIMATIONS PLAYED NORMALLY
-                if (this.animationAction.isRunning()) {
-                    if (this.time > this.animationAction.time) {
-                        this.resetTransitions();
-                    }
-                    this.time = this.animationAction.time;
-                } else {
-
-                    // MANUAL ANIMATIONS, THIS ANIMATIONS ARE CONTROLLED BY USER WITH THE CONTROLLER PARAMETERS, THE VALUE IN THE PARAMETER 
-                    if (this.fixedMotion === true) {
-                        let val = this.animationContoller.params[this.motionParamString];
-                        if (val > 0.999) val = 0.99999;
-                        if (val < 0) val = 0
-                        this.animationAction.time = val * this.duration;
-                    }
-
-                    // ANIMATION IS NO LONGER PLAYING, BUT KEEP ON CHECKING IN CASE A TRANSITION HAPPENS
-                    const timeScale = this.animationAction.timeScale * this.mixer.timeScale;
-                    this.time += clockDelta * timeScale;
-                    if (this.time > this.duration) {
-                        this.resetTransitions();
-                        this.time = 0;
-                    }
-
-                }
-            }
-        }
-
-        // CHECK TRANSITIONS ONLY IF IT IS NOT A DROPPING STATE
-        if (isDropState === false || isDropState == null) this.checkTransitions(isNextState);
-        this._updateTransitionTime(clockDelta);
-    }
-
-    _updateTransitionTime(clockDelta) {
-
-        if (this._isTransitioning === true) {
-            this._transitionTime += clockDelta;
-            if (this._isFading) {
-                let weight = this._stateWeight + this._fadeFractionTime * clockDelta;
-                if (weight < 0) weight = 0;
-                if (weight > 1) weight = 1;
-                this.setWeight(weight);
-            }
-            if (this._transitionTime >= this._transitionDuration) {
-                this.setWeight(this._targetWeight);
-                this._isTransitioning = false;
-                this._isFading = false;
-                this._transitionTime = 0;
-
-            }
-        }
-    }
-
+    
     setSpeedMultiplierParameter(paramString) {
         if (this.animationContoller.params[paramString] != null)
             this.multParamString = paramString;
@@ -265,51 +204,116 @@ class AnimationState {
         }
     }
 
-    checkTransitions(isNextState) {
-        // make sure there is currently no transition happening
-        // check from layer, any state also has to know that there is currently no transition 
-        // any state doesnt give a shit, if its any state, omit first validation
+    _update(clockDelta, isNextState, isDropState) {
+        //maybe not call it always?
+        this._updateEffectiveWeight()
+
+        //console.log(this._effectiveWeight);
+        if (this.animationAction != null) {
+
+            // IS SPEED CONTROLLERD BY ANIMATION CONTROLLER PARAMETERS?
+            if (this.multParamString != "")
+                this.animationAction.timeScale = this.speed * this.animationContoller.params[this.multParamString];
+
+            // SECTION TO UPDATE TRANSITIONS CHECKS
+            if (isDropState === false || isDropState == null) {
+                // ANIMATIONS PLAYED NORMALLY
+                if (this.animationAction.isRunning()) {
+                    if (this.time > this.animationAction.time) {
+                        this._resetTransitions();
+                    }
+                    this.time = this.animationAction.time;
+                } else {
+
+                    // MANUAL ANIMATIONS, THIS ANIMATIONS ARE CONTROLLED BY USER WITH THE CONTROLLER PARAMETERS, THE VALUE IN THE PARAMETER 
+                    if (this.fixedMotion === true) {
+                        let val = this.animationContoller.params[this.motionParamString];
+                        if (val > 0.999) val = 0.99999;
+                        if (val < 0) val = 0
+                        this.animationAction.time = val * this.duration;
+                    }
+
+                    // ANIMATION IS NO LONGER PLAYING, BUT KEEP ON CHECKING IN CASE A TRANSITION HAPPENS
+                    const timeScale = this.animationAction.timeScale * this.mixer.timeScale;
+                    this.time += clockDelta * timeScale;
+                    if (this.time > this.duration) {
+                        this._resetTransitions();
+                        this.time = 0;
+                    }
+
+                }
+            }
+        }
+
+        // CHECK TRANSITIONS ONLY IF IT IS NOT A DROPPING STATE
+        if (isDropState === false || isDropState == null) this._checkTransitions(isNextState);
+        this._updateTransitionTime(clockDelta);
+    }
+
+    _updateTransitionTime(clockDelta) {
+
+        if (this._isTransitioning === true) {
+            this._transitionTime += clockDelta;
+            if (this._isFading) {
+                let weight = this._stateWeight + this._fadeFractionTime * clockDelta;
+                if (weight < 0) weight = 0;
+                if (weight > 1) weight = 1;
+                this.setWeight(weight);
+            }
+            
+            if (this._transitionTime >= this._transitionDuration) {
+                this.setWeight(this._targetWeight);
+                this._isTransitioning = false;
+                this._isFading = false;
+                this._transitionTime = 0;
+
+            }
+        }
+    }
+
+    _checkTransitions(isNextState) {
 
         if (this.animationLayer.currentTransition === null || this.isAnyState === true) {
-            this.validateAllTransitions();
+            this._validateAllTransitions();
 
         } else {
             if (isNextState) {
                 if (this.animationLayer.currentTransition.toBreaks === true) {
-                    this.validateAllTransitions(); // this one validates all transitions
+                    // "TO STATES" CAN VALIDATE NEW TRANSITIONS THAT BREAK CURRENT TRANSITIONS
+                    this._validateAllTransitions(); 
                 }
             } else {
                 if (this.animationLayer.currentTransition.fromBreaks === true) {
+                    // "FROM STATES" CAN BE ADAPTED TO CHECK ONLY MORE IMPORTANT TRANSITIONS FROM "TO STATE"
                     if (this.animationLayer.currentTransition.orderedBreak)
-                        this.validateAllTransitions(this.animationLayer.currentTransitionindex + 1);
+                        this._validateAllTransitions(this.animationLayer.currentTransitionindex + 1);
                     else
-                        this.validateAllTransitions(0);
+                        this._validateAllTransitions(0);
                 }
             }
         }
     }
-    validateAllTransitions(startIndex = 0) {
+    _validateAllTransitions(startIndex = 0) {
         for (let i = startIndex; i < this.transitions.length; i++) {
-            //if (i !== ignoreIndex) {
             if (this.transitions[i].validate()) {
-                console.log("transition passed");
-                this.callTransition(this.transitions[i]);
+                this._callTransition(this.transitions[i]);
                 break;
             }
-            //}
         }
     }
-    callTransition(transition) {
+
+    _callTransition(transition) {
         const duration = transition.fixedDuration === true ?
             transition.duration :
-            (transition.duration * this.duration) / (this.speed * this.mixer.timeScale); //multiply it by modifier if exists
+            (transition.duration * this.duration) / (this.speed * this.mixer.timeScale); // multiply it by modifier if exists
 
         const targetState = transition.targetState;
 
         const offset = transition.offset * targetState.duration; // OFFSET IS NORMALIZED, MULTIPLY IT WITH DURATION
         this.animationLayer.switchToState(transition.targetState, duration, offset, transition);
     }
-    resetTransitions() {
+
+    _resetTransitions() {
         for (let i = 0; i < this.transitions.length; i++) {
             this.transitions[i].resetLoop();
         }
@@ -321,8 +325,6 @@ class AnimationState {
         this._startTransitionCounter(duration);
         targetState._startTransitionCounter(duration);
 
-        console.log("from: " + this.name);
-        console.log("to: " + targetState.name);
         if (this.animationAction == null) {
             // IF INITIAL STATE ANIMATION ACTION IS NULL, CHANGE THE WEIGHT AT ONCE\
             this._fadeFractionTime = 0;
@@ -330,14 +332,12 @@ class AnimationState {
             targetState._fadeFractionTime = 0;
             targetState._setTargetWeight(true, 1);
         } else if (targetState.animationAction == null) {
-
             // IF TARGET STATE ANIMATION ACTION IS NULL, CHANGE THE WEIGHT ONCEC IT FINISHES TRANSITIONING
             this._fadeFractionTime = 0;
             this._setTargetWeight(false, 0);
             // MAKE SURE FADE FRACTION TIME IS 0, IN TRANSITIONS IT CAN STILL HAVE A VALUE FROM, BEFORE
             targetState._fadeFractionTime = 0;
             targetState._setTargetWeight(false, 1);
-
 
         } else {
             // WHEN BOTH ANIMATION ACTION EXIST
@@ -358,6 +358,7 @@ class AnimationState {
 
     // CROSS FADE TO REMOVE
     _crossFadeOff(duration) {
+        //console.log("fade off");
         this._setTargetWeight(false, 0);
         this._startTransitionCounter(duration);
         this._fadeFractionTime = -this._stateWeight / duration;
@@ -377,9 +378,14 @@ class AnimationState {
         }
     }
 
-    _resetFadeTime(duration) {
+    _resetFadeTime(duration,isNextState) {
         this._startTransitionCounter(duration);
-        this._fadeFractionTime = (1 - this._stateWeight) / duration;
+        if (isNextState === true){
+            this._fadeFractionTime = (1 - this._stateWeight) / duration;
+        }
+        else{
+            this._fadeFractionTime = -this._stateWeight / duration
+        }
     }
 
     _setTargetWeight(abruptChange, targetWeight) {
@@ -389,21 +395,23 @@ class AnimationState {
     }
 
     _startTransitionCounter(duration) {
+
+        // TRANSITION COUNTER DEFINED FROM TRANSITION DURATION TIME
         this._transitionDuration = duration;
         this._transitionTime = 0;
         this._isTransitioning = true;
+
     }
 
     setWeight(value) {
-        //TEST HERE
         this._stateWeight = value;
         this._updateEffectiveWeight();
     }
 
     _updateEffectiveWeight() {
-        //console.log("state: " + this.name + "layer " + this.animationLayer.name + "  " + this.animationLayer._effectiveWeight);
+
+        // EFFECTIVE STATE WEIGHTS DEPEND ON THE LAYER IT BELONGS
         this._effectiveWeight = this._stateWeight * this.animationLayer._effectiveWeight;
-        //console.log("state: " + this.name + " weight: " + this._effectiveWeight);
         if (this.animationAction != null)
             this.animationAction.weight = this._effectiveWeight;
     }
@@ -411,7 +419,7 @@ class AnimationState {
 
 }
 
-class AnimationLayer { // top layer of animation
+class AnimationLayer {
     constructor(animationController, name, weight = 0, additiveBlend = false) {
         this.animationController = animationController;
 
@@ -421,10 +429,21 @@ class AnimationLayer { // top layer of animation
         this.additiveBlend = additiveBlend;
 
         this.weight = weight;
+        
 
+        // IF CURRENT STATE HAS ANIMATION ACTION NULL, IT MODIFIES THE LAYER WEIGHT TO 0
+        this._stateWeightModifier = 1;
         this._effectiveWeight = 1;
         this._overrideWeightValue = 1;
         this._lastLayer = null;
+        this._isBaseLayer = false;
+
+        this._isTransitioning =false;
+        this._transitionDuration = 0;
+        this._transitionTime = 0;
+        this._isFading = false;
+        this._fadeFractionTime = 0;
+        this._targetWeight = 1;
 
         this.animationStates = [];
 
@@ -432,10 +451,9 @@ class AnimationLayer { // top layer of animation
         this.entryEmptyState = new AnimationState(this, "entry/exit"); //empty state
         this.anyEmptyState = new AnimationState(this, "any"); //empty state
         this.anyEmptyState.isAnyState = true;
-
-
-
+        
         this.currentState = this.entryEmptyState;
+        this.currentStateTemp = null;  // SAVES THE STATE WHEN CURRENT STATE GOES TO TARGET STATE
         this.nextState = null
         this.droppingStates = null
 
@@ -444,28 +462,19 @@ class AnimationLayer { // top layer of animation
         this.randValid = 0;
     }
 
-    _updateEffectiveWeight() {
-        if (this._lastLayer == null) { // LAYER ON BOTTOM
-            this._effectiveWeight = this.weight;
-            if (this.additiveBlend === false) this._overrideWeightValue = 1 - this.weight; //0.5
-            else this._overrideWeightValue = 1;
-        } else {
-            if (this.additiveBlend === false) {
-                this._effectiveWeight = this._lastLayer._overrideWeightValue * this.weight;
-                this._overrideWeightValue = this._lastLayer._overrideWeightValue - this._effectiveWeight;
-            } else {
-                this._overrideWeightValue = this._lastLayer._overrideWeightValue;
-                this._effectiveWeight = this.weight;
-            }
-        }
-    }
+
+
 
     _update(clockDelta) {
+        //console.log(this._effectiveWeight);
+        //console.log();
+        //if (this._isBaseLayer === false)
+        this._updateTransitionTime(clockDelta);
 
         // ANY EMPTY STATES HAS PRIORITY OVER CURRENT STATE IN TRANSITIONS
         this.anyEmptyState._update(clockDelta);
-        if (this.currentTransition != null) {
 
+        if (this.currentTransition != null) {
             // DROPPING STATES ARE THOSE THAT ARE CALLED WHEN AN INTERRUPTION HAPPENS, IF NO INTERRUPTION HAPPENS, THEN DROPPING STATES WILL BE NULL
             if (this.droppingStates != null) {
                 this.droppingStates.forEach(state => {
@@ -485,10 +494,52 @@ class AnimationLayer { // top layer of animation
             this.currentState._update(clockDelta);
         }
     }
+
+    // IF NOT ADDITIVE LAYER, THEY DEPEND ON WEIGHT FROM PREVIOUS LAYERS
+    _updateEffectiveWeight() {
+        if (this._lastLayer == null) { // LAYER ON BOTTOM
+            if (this._isBaseLayer) this._effectiveWeight = this.weight
+            else this._effectiveWeight = this.weight * this._stateWeightModifier;
+            
+            if (this.additiveBlend === false) this._overrideWeightValue = 1 - this._effectiveWeight; //0.5
+            else this._overrideWeightValue = 1;
+        } else {
+            if (this.additiveBlend === false) {
+                this._effectiveWeight = this._lastLayer._overrideWeightValue * this.weight * this._stateWeightModifier;
+                this._overrideWeightValue = this._lastLayer._overrideWeightValue - this._effectiveWeight;
+            } else {
+                this._effectiveWeight = this.weight * this._stateWeightModifier;
+                this._overrideWeightValue = this._lastLayer._overrideWeightValue;
+            }
+        }
+    }
+
+    _updateTransitionTime(clockDelta) {
+
+        if (this._isTransitioning === true) {
+            this._transitionTime += clockDelta;
+            if (this._isFading === true){
+                let weight = this._stateWeightModifier + this._fadeFractionTime * clockDelta;
+                if (weight < 0) weight = 0;
+                if (weight > 1) weight = 1;
+                this._stateWeightModifier = weight;
+            }
+            if (this._transitionTime >= this._transitionDuration) {
+                this._setLayerWeightModifier(this._targetWeight)
+            }
+        }
+    }
+
+    // CALLED ONLY ONCE WHEN STARTS
     _setupDefaultValues(lastLayer) {
-        this.currentState._stateWeight = 1;
-        this.currentState.play();
         this._lastLayer = lastLayer;
+        this.currentState._stateWeight = 1;
+        // CHANGE LAYER WEIGHT: IF THE INITIAL STATE IS NULL, SET IT TO 0, UNLESS IS THE BASE LAYER, BASE LAYER IS ALWAYS WITH WEIGHT OF 1
+        if (this.currentState.animationAction == null)
+            this._setLayerWeightModifier(0);
+
+        // CALL PLAY ON INITIAL STATE
+        this.currentState.play();
     }
 
     // CREATE LAYER STATES
@@ -523,10 +574,14 @@ class AnimationLayer { // top layer of animation
         const rand = Math.random();
         this.randValid = rand;
 
+        
         setTimeout(function() {
             if (scope.randValid === rand) { // RANDOM VALUE USED TO KNOW IF NO OTHER TRANSITION WAS TRIGGERED WHILE THIS TRANSITION HAPPENED
+                if (scope.currentState !== scope.nextState){
+                    scope.currentState.stop();
+                }
                 scope.currentTransition = null;
-                scope.currentState.stop();
+                
                 if (scope.droppingStates != null) {
                     scope.droppingStates.forEach(state => {
                         if (state !== scope.nextState)
@@ -534,37 +589,58 @@ class AnimationLayer { // top layer of animation
                     });
                 }
                 scope.currentState = scope.nextState;
+                scope.nextState = null;
                 scope.currentTransitionindex = -1;
                 scope.droppingStates = null;
-                console.log("finished");
             }
         }, duration * 1000);
+        
+        // CROSS FADE DEPENDING ON TARGET STATE WETHER IS NULL OR NOT
+        this._crossFadeLayer(targetState, duration);
 
+            
+        // RESET TRANSITION DURATION ON CURRENTSTATE AND TARGETSTATE IF TARGET STATE IS THE SAME, AND THE CURRENT STATE IS DIFFERENT FROM TARGET STATE
+        if (targetState === scope.nextState && this.currentState !== targetState) {
+            // UNLESS ITS THE SAME AS CURRENT STATE
+            targetState._resetFadeTime(duration,true);
+            scope.currentState._resetFadeTime(duration,false);
 
-        if (targetState === scope.nextState) {
-            targetState._resetFadeTime(duration);
         } else {
 
             // SAVE CURRENT TRANSITION
             scope.currentTransition = transition;
             scope.currentTransitionindex = scope.currentState.transitions.indexOf(transition);
-            scope.currentState.crossFadeTo(targetState, duration, offset);
+            if (this.currentState !== targetState)  scope.currentState.crossFadeTo(targetState, duration, offset);
+            else {
+                scope.currentState.crossFadeTo(targetState, duration, offset);
+                //STILL TRYING to FIGURE A WAY TO LERP IT DOWN
+                //scope._cloneState(scope.currentState);
+            }
 
         }
 
         // MEANS THERE WAS ALREADY A TRANSITION GOING ON
         if (scope.nextState != null) {
+            if (scope.currentState !== targetState)
+                scope.currentState.pause(true);
 
             if (this.droppingStates == null)
                 this.droppingStates = [];
 
-            // IF TARGET STATE IS IN THE LIST OF DROPPING STATES, REMOVE IT FROM THE DROPPING LIST
-            const indexState = this.droppingStates.indexOf(targetState);
-            if (indexState !== -1) this.droppingStates.splice(indexState, 1);
+            
+            if (scope.nextState !== targetState){
+                // IF TARGET STATE IS IN THE LIST OF DROPPING STATES, REMOVE IT FROM THE DROPPING LIST
+                const indexState = this.droppingStates.indexOf(targetState);
+                if (indexState !== -1) this.droppingStates.splice(indexState, 1);
 
-            // CHECK IF THE CURRENT "NEXT STATE" IS NOT ALREADY IN THE LIST, ADD IT IF ITS MISSING TO DROP IT
-            const index = this.droppingStates.indexOf(scope.nextState);
-            if (index === -1) this.droppingStates.push(scope.nextState);
+                // CHECK IF THE CURRENT "NEXT STATE" IS NOT ALREADY IN THE LIST, ADD IT IF ITS MISSING TO DROP IT
+                const index = this.droppingStates.indexOf(scope.nextState);
+                if (index === -1) this.droppingStates.push(scope.nextState);
+
+                scope.nextState.pause(true);
+            }
+            //console.log(this.droppingStates);
+            
 
             if (scope.currentState.animationAction == null && targetState.animationAction != null) {
                 // CHANGE ABRUPTLY ON BEGINING
@@ -580,12 +656,56 @@ class AnimationLayer { // top layer of animation
                 // MAKE A SMOOTH TRANSITION
                 this.droppingStates.forEach(state => {
                     state._crossFadeOff(duration);
+                    
                 });
             }
         }
 
+        targetState.pause(false);
+
         scope.nextState = targetState;
     }
+
+    _crossFadeLayer(nextState, duration){
+        // IF CURRENT STATE AND NEXT STATE 
+        if (nextState.animationAction != null && this.currentState.animationAction != null){
+            this._setLayerWeightModifier(1);            
+        }
+        else if (nextState.animationAction == null && this.currentState.animationAction == null){
+            this._setLayerWeightModifier(0);
+        }
+        else {
+            if (nextState.animationAction == null ){
+                this._targetWeight = 0;
+                if (this._stateWeightModifier !== 0){
+                    this._fadeFractionTime = -this._stateWeightModifier / duration;
+                }
+                else this._fadeFractionTime = 0;
+            }
+            else {
+                this._targetWeight = 1;
+                if (this._stateWeightModifier !== 1)this._fadeFractionTime = (1 - this._stateWeightModifier) / duration;
+                else this._fadeFractionTime = 0;
+                
+            }
+            this._startTransitionCounter(duration);
+            this._isFading = true;
+        }
+    }
+    _startTransitionCounter(duration) {
+        this._transitionDuration = duration;
+        this._transitionTime = 0;
+        this._isTransitioning = true;
+    }
+
+    _setLayerWeightModifier(weight){
+        this._stateWeightModifier = weight;
+        this._isTransitioning = false;
+        this._isFading = false;
+        this._transitionTime = 0;    
+    }
+
+    
 }
 
 class AnimationController {
@@ -596,6 +716,7 @@ class AnimationController {
         this._played = false;
         this.name = name == null ? "" : name;
         this.params = {};
+        this.triggers = [];
         if (parametersArray != null) {
             parametersArray.forEach(element => {
                 const prop = Object.getOwnPropertyNames(element)[0];
@@ -603,11 +724,11 @@ class AnimationController {
 
                 if (this.params[prop].constructor === Object) {
                     this.params[prop] = new SimpleTrigger(this.params[prop].value);
+                    this.triggers.push(this.params[prop]);
                 }
             });
         }
-
-        //only 1 mixer that will control all layers/states
+        // ONLY 1 MIXER CONTROLS THE ANIMATION CONTROLLER
         this.mixer = new AnimationMixer(root);
         //this.mixer.timeScale = 10;
 
@@ -627,14 +748,14 @@ class AnimationController {
             //console.log(e.code);
             if (e.code === "ArrowLeft") {
                 scope.setTrigger("trig2");
-                console.log("setTrigger('trig2'), current value is: " + scope.getParam("trig2"));
+                console.log("setTrigger('trig2')");
                 //scope.setParam("movenext", true);
                 //console.log("setParam('movenext',true), current value is: " + scope.getParam("movenext"));
                 //console.log("left!")
             }
             if (e.code === "ArrowRight") {
                 scope.setParam("movenext", false);
-                console.log("setParam('movenext',false), current value is: " + scope.getParam("movenext"));
+                console.log("setParam('movenext',false)");
                 //console.log("right!")
             }
             if (e.code === "KeyO") {
@@ -660,7 +781,7 @@ class AnimationController {
                 //console.log("clicked up");
                 //console.log("called: setTrigger('trig')");
                 scope.setTrigger("trig");
-                console.log("setTrigger('trig'), current value is: " + scope.getParam("trig"));
+                console.log("setTrigger('trig')");
 
             }
             if (e.code === "ArrowDown") {
@@ -691,9 +812,15 @@ class AnimationController {
         this._setupDefaultValues();
 
         this._updateLayers(clockDelta);
+        this._updateTriggers();
         this.mixer.update(clockDelta);
 
 
+    }
+    _updateTriggers(){
+        this.triggers.forEach(trigger => {
+            trigger.triggerPass();
+        });
     }
     _updateLayers(clockDelta) {
         for (let i = this.animationLayers.length - 1; i >= 0; i--) {
@@ -711,10 +838,16 @@ class AnimationController {
     }
     _setupLayersDefaultValues() {
         for (let i = 0; i < this.animationLayers.length; i++) {
-            if (i < this.animationLayers.length - 1)
-                this.animationLayers[i]._setupDefaultValues(this.animationLayers[i + 1]);
-            else
+            if (i === 0){
+                this.animationLayers[i].weight = 1;
+                this.animationLayers[i]._isBaseLayer = true;
+            }
+
+            if (i < this.animationLayers.length-1)
+                this.animationLayers[i]._setupDefaultValues(this.animationLayers[i+1]);
+            else{
                 this.animationLayers[i]._setupDefaultValues(null);
+            }
         }
     }
 
@@ -757,10 +890,10 @@ class AnimationController {
                 //console.log(param); //check how to set it here
                 // param = value or param.value = value
             } else {
-                console.error('Calling setParam() on Trigger parameters');
+                console.warn('Calling setParam() on Trigger parameters');
             }
         } else {
-            console.error(`Parameter with name ${paramName} does not exist in Animation Controller`);
+            console.warn(`Parameter with name ${paramName} does not exist in Animation Controller`);
         }
     }
 
@@ -773,7 +906,7 @@ class AnimationController {
                 return param.trigger;
             }
         } else {
-            console.error(`Parameter with name ${paramName} does not exist in Animation Controller`);
+            console.warn(`Parameter with name ${paramName} does not exist in Animation Controller`);
         }
     }
 }
@@ -781,16 +914,25 @@ class AnimationController {
 class SimpleTrigger {
     constructor(startValue) {
         this.trigger = startValue === undefined ? false : startValue; //unless the user wants it to start with true, set it to false
+        this.passed = false;
     }
 
     checkTrigger() {
         if (this.trigger === true) {
-            console.log("Animation Action ended, and trigger is true, moving to next animation state, and setting trigger to false")
-            this.trigger = false;
+            this.passed = true;
             return true;
         }
         return false;
     }
+    triggerPass(){
+        if (this.passed === true){
+            console.log("Animation Action ended, and trigger is true, moving to next animation state, and setting trigger to false")
+            this.passed = false;
+            this.trigger = false;
+        }
+            
+    }
+
 }
 
 export { AnimationController, AnimationLayer, AnimationState, AnimationTransition }
