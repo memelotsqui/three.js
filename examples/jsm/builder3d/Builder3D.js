@@ -123,7 +123,7 @@ class Builder3D {
 
                 scope.renderer = renderer;
                 scope.rules = new WorldRules(scope);
-                //testingCode();
+                testingCode();
 
 
 
@@ -156,6 +156,10 @@ class Builder3D {
             bulbLight.add(new THREE.Mesh(bulbGeometry, bulbMat));
             bulbLight.position.set(2, 2, 4);
             //scope.scene.add(bulbLight);
+
+            const light = new THREE.AmbientLight( 0x111111 ); // white light
+            light.intensity = 1;
+            //scope.scene.add( light );
 
             //scope.renderer.toneMappingExposure = 7;
         }

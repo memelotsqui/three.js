@@ -2027,8 +2027,10 @@ CustomCubicSplineInterpolant.prototype.interpolate_ = function(i1, t0, t, t1) {
         const m1 = intan0 * td; // inTangent_k+1 * (t_k+1 - t_k)
 
         result[i] = s0 * p0 + s1 * m0 + s2 * p1 + s3 * m1;
-    }
 
+
+    }
+    
     return result;
 
 };
@@ -2115,6 +2117,7 @@ const PATH_PROPERTIES = {
 
 const INTERPOLATION = {
     CUBICSPLINE: undefined, // We use a custom interpolant (GLTFCubicSplineInterpolation) for CUBICSPLINE tracks. Each
+    CUBICCUSTOM: undefined,
     // keyframe track will be initialized with a default interpolation type, then modified.
     LINEAR: InterpolateLinear,
     STEP: InterpolateDiscrete
@@ -4165,21 +4168,27 @@ class GLTFParser {
                 const weightAccessor = weightAccessors[i].array;
                 const tangentAccessor = tangentAccessors[i].array;
 
+                const interpolation = timeAccessor.length > 1 ? INTERPOLATION.CUBICCUSTOM : INTERPOLATION.InterpolateDiscrete;
+
                 const track = new NumberKeyframeTrack(
                     trackName,
                     timeAccessor,
                     valueAccessor,
-                    INTERPOLATION.CUBICCUSTOM
+                    interpolation
                 );
 
-                track.createInterpolant = function InterpolantFactoryMethodGLTFCubicSpline(result) {
+                if (timeAccessor.length > 1) {
+                    track.createInterpolant = function InterpolantFactoryMethodGLTFCubicSpline(result) {
 
-                    return new CustomCubicSplineInterpolant(this.times, this.values, this.getValueSize(), weightAccessor, tangentAccessor, result);
+                        return new CustomCubicSplineInterpolant(this.times, this.values, this.getValueSize(), weightAccessor, tangentAccessor, result);
 
-                };
+                        //return new GLTFCubicSplineInterpolant(this.times, this.values, this.getValueSize(), result);
 
-                // Mark as CUBICSPLINE. `track.getInterpolation()` doesn't support custom interpolants.
-                track.createInterpolant.isInterpolantFactoryMethodGLTFCubicSpline = true;
+                    };
+
+                    // Mark as CUBICSPLINE. `track.getInterpolation()` doesn't support custom interpolants.
+                    track.createInterpolant.isInterpolantFactoryMethodGLTFCubicSpline = true;
+                }
 
                 tracks.push(track);
             }
@@ -4195,7 +4204,7 @@ class GLTFParser {
 
     }
 
-    assignAnimationLayer(animLayerDef, animationController) {
+    assignAnimationLayer(animLayerDef, animationController, syncLayer) {
 
         const parser = this;
 
@@ -4208,37 +4217,57 @@ class GLTFParser {
 
         // create animation layers states
         const pendingStates = [];
-        const transitionsDefs = animLayerDef.transitions;
+        //console.log(animLayerDef.transitions);
+        //console.log(syncLayer);
+        //const transitionsDefs = syncLayer == null ? animLayerDef.transitions : syncLayer.transitions;
 
-        for (let k = 0, kl = animLayerDef.states.length; k < kl; k++) {
-            const stateDef = animLayerDef.states[k];
-            pendingStates.push(parser.assignAnimationState(stateDef, layer, animationController));
+        if (syncLayer == null){
+            if (animLayerDef.states !== null){
+                for (let k = 0, kl = animLayerDef.states.length; k < kl; k++) {
+                    const stateDef = animLayerDef.states[k];
+                    pendingStates.push(parser.assignAnimationState(stateDef, layer, animationController));
+                }
+            }
+        }
+        else{
+            if (syncLayer.states != null){
+                for (let k = 0, kl = syncLayer.states.length; k < kl; k++) {
+                    const stateDef = syncLayer.states[k];
+                    stateDef.clip = animLayerDef.syncedClips[k]
+                    pendingStates.push(parser.assignAnimationState(stateDef, layer, animationController));
+                }
+            }
         }
 
         return Promise.all(pendingStates).then(function(states) {
-            if (animLayerDef.initialState != null)
-                layer.setInitialState(states[animLayerDef.initialState]);
+            const targetLayer = syncLayer == null ? animLayerDef : syncLayer;
+
+            if (targetLayer.initialState != null)
+                layer.setInitialState(states[targetLayer.initialState]);
 
             // crate and assign transitions to created states
-            for (let k = 0, kl = transitionsDefs.length; k < kl; k++) {
-                const transitionDef = transitionsDefs[k];
+            const transitionsDefs = targetLayer.transitions;
+            if (transitionsDefs != null){
+                for (let k = 0, kl = transitionsDefs.length; k < kl; k++) {
+                    const transitionDef = transitionsDefs[k];
 
-                let fromState;
-                if (transitionDef.from === -2) fromState = layer.anyEmptyState;
-                if (transitionDef.from === -1) fromState = layer.entryEmptyState;
-                if (transitionDef.from >= 0) fromState = states[transitionDef.from];
+                    let fromState;
+                    if (transitionDef.from === -2) fromState = layer.anyEmptyState;
+                    if (transitionDef.from === -1) fromState = layer.entryEmptyState;
+                    if (transitionDef.from >= 0) fromState = states[transitionDef.from];
 
-                let toState;
-                if (transitionDef.to === -2) toState = layer.anyEmptyState;
-                if (transitionDef.to === -1) toState = layer.entryEmptyState;
-                if (transitionDef.to >= 0) toState = states[transitionDef.to];
+                    let toState;
+                    if (transitionDef.to === -2) toState = layer.anyEmptyState;
+                    if (transitionDef.to === -1) toState = layer.entryEmptyState;
+                    if (transitionDef.to >= 0) toState = states[transitionDef.to];
 
-                const transition = fromState.createTransition(toState, transitionDef.params);
-                if (transitionDef.conditions != null) {
-                    for (let l = 0, ll = transitionDef.conditions.length; l < ll; l++) {
-                        const condition = transitionDef.conditions[l];
-                        const paramString = Object.getOwnPropertyNames(animationController.params)[condition.param];
-                        transition.addNewCondition(paramString, condition.cond, condition.value);
+                    const transition = fromState.createTransition(toState, transitionDef.params);
+                    if (transitionDef.conditions != null) {
+                        for (let l = 0, ll = transitionDef.conditions.length; l < ll; l++) {
+                            const condition = transitionDef.conditions[l];
+                            const paramString = Object.getOwnPropertyNames(animationController.params)[condition.param];
+                            transition.addNewCondition(paramString, condition.cond, condition.value);
+                        }
                     }
                 }
             }
@@ -4253,15 +4282,15 @@ class GLTFParser {
 
         const parser = this;
 
-        if (animStateDef.clip == null) {
+        const clipIndex = animStateDef.clip == null ? -1 :animStateDef.clip;
+
+        if (clipIndex === -1) {
             const animState = animationLayer.createState(animStateDef.name);
             parser.assignStateProperties(animState, animStateDef, animationController);
             return animState;
         } else {
-            return parser.getDependency('animationClip', animStateDef.clip).then(function(clip) {
-
-                const loop = parser.json.extras.animationClips[animStateDef.clip].loop;
-                console.log(loop);
+            return parser.getDependency('animationClip', clipIndex).then(function(clip) {
+                const loop = parser.json.extras.animationClips[clipIndex].loop;
                 const animState = animationLayer.createState(
                     animStateDef.name,
                     animStateDef.offset,
@@ -4303,8 +4332,8 @@ class GLTFParser {
 
             const pendingLayers = [];
             for (let j = 0, jl = layersDef.length; j < jl; j++) {
-                pendingLayers.push(parser.assignAnimationLayer(layersDef[j], animationController));
-
+                const syncLayer = layersDef[j].sync == null ? null : layersDef[layersDef[j].sync];
+                pendingLayers.push(parser.assignAnimationLayer(layersDef[j], animationController,syncLayer));
             }
             return Promise.all(pendingLayers).then(function(layers) {
 

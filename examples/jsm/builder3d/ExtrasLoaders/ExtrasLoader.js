@@ -300,7 +300,6 @@ class ExtrasLoader {
             //BATCHING
 
             if (mergeMeshes) {
-                console.log("asdasdasdas");
                 extras.batchGeom = new BatchCombine(gltf, startMerged);
             }
 

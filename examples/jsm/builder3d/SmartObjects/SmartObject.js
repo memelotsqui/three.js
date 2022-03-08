@@ -13,7 +13,6 @@ class SmartObject {
         this.setupVars();
 
         //this.testMixer = new THREE.AnimationMixer(this.model);
-        console.log(gltf);
         this.animationControllers = gltf.animationControllers == null ? [] : gltf.animationControllers;
         this.testing();
 
@@ -76,7 +75,7 @@ class SmartObject {
 
         
         if (this.gltf.animationControllers != null){
-            console.log(this.gltf.animationControllers);
+            //console.log(this.gltf.animationControllers);
         }
 
     }
