@@ -4,7 +4,7 @@
  * Copyright 2018-2021 Sean Bradley
  * https://github.com/Sean-Bradley/StatsVR/blob/master/LICENSE
  */
-import * as THREE from '../../../build/three.module.js';
+import * as THREE from 'three';
 var StatsVR = /** @class */ (function() {
     function StatsVR(scene, camera) {
         this.timer = performance || Date;

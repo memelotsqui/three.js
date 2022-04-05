@@ -19,7 +19,7 @@ class VRuser {
 
         this.vrKeyboard = null
             //https://ipfs.io/ipfs/QmYmL1Q2z1DTyVsRuHkiYA3b1apnLipooGigvcpphK1DuL
-        builder.loadSmart("https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/models/keyboard_58/gltf.gltf", {
+        builder.loadSmart("https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/models/keyboard_63/gltf.gltf", {
             onSubmit: builder.loadSmart,
             context: builder,
             height: 0.5 //,
@@ -41,14 +41,12 @@ class VRuser {
         //console.log(this.control0);
 
         this.control0.addEventListener("connected", function(evt) {
-            console.log(evt);
             if (evt.side === "right")
                 rightControlListener(scope.control0);
             if (evt.side === "left")
                 leftControlListener(scope.control0);
         });
         this.control1.addEventListener("connected", function(evt) {
-            console.log(evt);
             if (evt.side === "right")
                 rightControlListener(scope.control1);
             if (evt.side === "left")
@@ -57,14 +55,13 @@ class VRuser {
 
 
         function rightControlListener(ctrl) {
-            console.log(ctrl);
             ctrl.addEventListener("onTriggerClick", rightControlOnTriggerClick);
             ctrl.addEventListener("onMove", rightControlOnMove);
             ctrl.addEventListener("onTopClick", rightControlOnTopClick);
         }
 
         function leftControlListener(ctrl) {
-            console.log(ctrl)
+
         }
 
         function forwardDirection() {
@@ -75,15 +72,16 @@ class VRuser {
 
         }
 
-
         //RIGHT CONTROL
         function rightControlOnTopClick(event) { //toggle virtual keyboard
             if (scope.vrKeyboard != null) {
                 scope.vrKeyboard.setActive();
                 if (scope.vrKeyboard.isActive) {
                     const pos = scope.user.position.clone().add(forwardDirection().multiplyScalar(1));
+                    let lookAt = new THREE.Vector3();
                     scope.vrKeyboard.setData({ position: pos, visible: true });
-                    scope.vrKeyboard.model.lookAt(camera.getWorldPosition());
+                    camera.getWorldPosition(lookAt)
+                    scope.vrKeyboard.model.lookAt(lookAt);
                 }
             }
         }
@@ -266,7 +264,6 @@ class OculusControl {
             //scope.raycastLine.layers.set(2);
 
             scope.controller.add(scope.raycastLine);
-            console.log("test");
 
             //controller grip
             scope.controllerGrip = renderer.xr.getControllerGrip(id);

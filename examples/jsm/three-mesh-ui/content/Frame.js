@@ -1,5 +1,5 @@
-import { PlaneGeometry } from '../../../../build/three.module.js';
-import { Mesh } from '../../../../build/three.module.js';
+import { PlaneGeometry } from 'three';
+import { Mesh } from 'three';
 
 /**
  * Returns a basic plane mesh.

@@ -1,5 +1,5 @@
-import { Plane } from '../../../../../build/three.module.js';
-import { Vector3 } from '../../../../../build/three.module.js';
+import { Plane } from 'three';
+import { Vector3 } from 'three';
 
 import FontLibrary from './FontLibrary.js';
 import UpdateManager from './UpdateManager.js';

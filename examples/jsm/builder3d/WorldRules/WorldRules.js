@@ -74,6 +74,8 @@ class WorldRules {
             this.pcuser.setPositionWitObject(obj);
         }
     }
+
+
 }
 
 class CubeSkybox {
@@ -104,7 +106,7 @@ class CubeSkybox {
         let textures = [];
         for (let i = 0; i < cubeTexture.images.length; i++) {
             const newText = new THREE.Texture(cubeTexture.images[i]);
-            newText.encoding = THREE.sRGBEncoding;;
+            newText.encoding = THREE.sRGBEncoding;
             newText.needsUpdate = true;
 
             textures.push(newText);
@@ -144,6 +146,31 @@ class CubeSkybox {
         meshes[3].material = cubemapMaterials[2];
         meshes[4].material = cubemapMaterials[5];
         meshes[5].material = cubemapMaterials[4];
+
+
+        // FLIP CUBE FACES IN IOS AND FIREFOX
+        if (navigator.userAgent.toLowerCase().indexOf('firefox') > -1 || iOS()) {
+            meshes[0].scale.set(1, -1, 1);
+            meshes[1].scale.set(1, -1, 1);
+            meshes[2].scale.set(1, 1, -1);
+            meshes[3].scale.set(1, 1, -1);
+            meshes[4].scale.set(1, -1, 1);
+            meshes[5].scale.set(1, -1, 1);
+        }
+
+        function iOS() {
+            return [
+                    'iPad Simulator',
+                    'iPhone Simulator',
+                    'iPod Simulator',
+                    'iPad',
+                    'iPhone',
+                    'iPod'
+                ].includes(navigator.platform)
+                // iPad on iOS 13 detection
+                ||
+                (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+        }
     }
     tick(clockDelta) {
         if (this.customUniformsCubemap[0].colorInterpolation.value < 1) {

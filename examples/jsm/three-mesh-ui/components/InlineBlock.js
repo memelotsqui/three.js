@@ -1,4 +1,4 @@
-import { Object3D, Vector2 } from '../../../../build/three.module.js';
+import { Object3D, Vector2 } from 'three';
 
 import InlineComponent from './core/InlineComponent.js';
 import BoxComponent from './core/BoxComponent.js';

@@ -14,8 +14,8 @@ loading it twice, even if the two component are not in the same parent/child hie
 
 */
 
-import { FileLoader } from '../../../../../build/three.module.js';
-import { TextureLoader } from '../../../../../build/three.module.js';
+import { FileLoader } from 'three';
+import { TextureLoader } from 'three';
 
 const fileLoader = new FileLoader();
 const requiredFontFamilies = [];

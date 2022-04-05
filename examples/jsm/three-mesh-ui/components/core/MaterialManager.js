@@ -1,4 +1,4 @@
-import { ShaderMaterial } from '../../../../../build/three.module.js';
+import { ShaderMaterial } from 'three';
 import Defaults from '../../utils/Defaults.js';
 
 /**

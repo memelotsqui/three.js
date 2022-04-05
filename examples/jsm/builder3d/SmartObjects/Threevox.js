@@ -5,13 +5,14 @@ class Threevox extends SmartObject {
         super(gltf, customData, builder, onLoad);
     }
     beforeExtras() {
+
         this.gltf.scene.traverse((o) => {
             if (o.userData.doorObject !== undefined) {
                 o.userData.batching = false;
                 o.traverse((ob) => {
                     ob.userData.batching = false;
                 });
-                this.addComponent(new DoorObject(o, this.gltf.nodes[o.userData.doorObject.pivot], -o.userData.doorObject.yRotateTo, 1))
+                this.addComponent(new DoorObject(o, this.gltf.nodes[o.userData.doorObject.pivot], -o.userData.doorObject.yRotateTo, 1, this.gltf))
                     //this.builder.rules.vrRaycastInteract.push(o);
             }
             if (o.userData.roofInvisibleTPS !== undefined) {
@@ -20,6 +21,9 @@ class Threevox extends SmartObject {
                     //ob.layers.set(2); //ignore raycasts
                 });
                 //o.visible = false;
+            }
+            if (o.userData.ambient_sound !== undefined) {
+                o.play();
             }
             if (o.userData.teleportVRTo !== undefined) {
                 //this.addComponent(new TeleportVRTo(o, this.gltf.nodes[o.userData.teleportVRTo.objectPosition]))
@@ -67,7 +71,7 @@ class TeleportVRTo extends ObjectComponent {
     }
 }
 class DoorObject extends ObjectComponent {
-    constructor(object, pivot, yRotateTo, speed) {
+    constructor(object, pivot, yRotateTo, speed, gltf) {
         super(object);
 
         this.pivot = pivot;
@@ -80,6 +84,15 @@ class DoorObject extends ObjectComponent {
 
         this.rotateCounter = 0;
 
+        this.openSound = null;
+        this.closeSound = null;
+        this.closingSound = null;
+        if (pivot.userData.door_sounds != null) {
+            this.openSound = gltf.nodes[pivot.userData.door_sounds.open];
+            this.closeSound = gltf.nodes[pivot.userData.door_sounds.close];
+            this.closingSound = gltf.nodes[pivot.userData.door_sounds.closing]
+        }
+
     }
     tick(clockDelta) {
         if (this.isMoving) {
@@ -91,6 +104,7 @@ class DoorObject extends ObjectComponent {
                     } else {
                         this.pivot.rotation.y = 0;
                         this.isMoving = false;
+                        if (this.closeSound != null) this.closeSound.play();
                     }
                 }
             } else {
@@ -101,6 +115,7 @@ class DoorObject extends ObjectComponent {
                     } else {
                         this.pivot.rotation.y = this.yRotateTo;
                         this.isMoving = false;
+                        if (this.closeSound != null) this.closeSound.play();
                     }
                 }
             }
@@ -111,6 +126,12 @@ class DoorObject extends ObjectComponent {
         this.openDoor();
     }
     openDoor() {
+        if (this.isOpen) {
+            console.log(this.openSound);
+            if (this.openSound != null) this.openSound.play();
+        } else {
+            if (this.closingSound != null) this.closingSound.play();
+        }
         this.isOpen = !this.isOpen;
         this.isMoving = true;
     }

@@ -1,4 +1,4 @@
-import { PlaneBufferGeometry } from '../../../../build/three.module.js';
+import { PlaneBufferGeometry } from 'three';
 
 /**
  * Job: create a plane geometry with the right UVs to map the MSDF texture on the wanted glyph.

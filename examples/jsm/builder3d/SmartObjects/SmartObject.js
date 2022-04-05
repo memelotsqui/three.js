@@ -48,8 +48,6 @@ class SmartObject {
 
         this.setData(customData);
 
-
-
         function moveToPosition() {
             if (gltf.userData.smartObject !== undefined) {
                 if (gltf.userData.smartObject.startPosition !== undefined) {
@@ -73,8 +71,8 @@ class SmartObject {
     }
     testing() {
 
-        
-        if (this.gltf.animationControllers != null){
+
+        if (this.gltf.animationControllers != null) {
             //console.log(this.gltf.animationControllers);
         }
 
@@ -172,7 +170,7 @@ class SmartObject {
             this.components.forEach(function(comp) {
                 comp.tick(clockDelta);
             });
-            this.animationControllers.forEach(function (anim) {
+            this.animationControllers.forEach(function(anim) {
                 anim.update(clockDelta);
             });
             this.smartTick(clockDelta);
@@ -249,6 +247,7 @@ class SmartObject {
     }
 
     static CreateSmartObject(gltf, customData, builder, onLoad) {
+
         if (gltf.userData.smartObject !== undefined) {
             (async() => {
 
@@ -279,14 +278,17 @@ class SmartObject {
                     } else {
                         stloc = gltf.userData.smartObject.class !== undefined ? './' + gltf.userData.smartObject.class + ".js" : "";
                     }
-
+                    if (stloc === "") {
+                        console.log("No uri,bufferView, or class name provided. Loading Basic Smart Model");
+                        return new SmartObject(gltf, customData, builder, onLoad);
+                    }
                     const { default: Smart } = await
                     import (
                         stloc
                     )
                     .catch(err => {
                         console.error(err);
-                        console.log("Class not loaded, Using SmartObject instead");
+                        console.warn("Problems loading" + stloc + ", Using Basic SmartObject instead");
                         return new SmartObject(gltf, customData, builder, onLoad);
                     });
                     if (Smart !== undefined) {
@@ -313,6 +315,7 @@ class ObjectComponent {
         //userData:
         //vruser, pcuser
         //hits
+        //left hand, right hand
     }
     onRaycastHitDoubleClick(customData) {
 

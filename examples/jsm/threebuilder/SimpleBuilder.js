@@ -3,7 +3,7 @@ import { OrbitControls } from '../controls/OrbitControlsClickMove.js';
 import { GLTFLoader } from '../loaders/GLTFLoaderExtras.js';
 import { BuilderExtras } from './BuilderExtras.js';
 import '../libs/hammer.min.js';
-import * as THREE from '../../../build/three.module.js';
+import * as THREE from 'three';
 import { VRButton } from '../webxr/VRButton.js';
 import StatsVR from '../stats/statsvr.js';
 //stats

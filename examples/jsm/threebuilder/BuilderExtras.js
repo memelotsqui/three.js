@@ -1,4 +1,4 @@
-import * as THREE from '../../../build/three.module.js';
+import * as THREE from 'three';
 import { BatchCombine } from './BatchCombine.js';
 import { ConvertMaterials } from './ConvertMaterials.js';
 import { Reflector } from '../objects/Reflector.js'
@@ -79,38 +79,39 @@ class BuilderExtras {
                     if (o.material !== undefined) {
                         // save its original material in case user wants to switch quality later, not yet used
                         o.userData.originalMaterial = o.material;
-                        if (o.material.length === undefined){
+                        if (o.material.length === undefined) {
                             let newMat = true;
-                            for (let i=0;i< origMats.length;i++){
-                                if (origMats[i] === o.material){
+                            for (let i = 0; i < origMats.length; i++) {
+                                if (origMats[i] === o.material) {
                                     newMat = false;
                                     break;
                                 }
                             }
-                            if (newMat){
+                            if (newMat) {
                                 origMats.push(o.material);
                             }
                         } else {
                             for (var i = 0; i < o.material.length; i++) {
                                 let newMat = true;
-                                for (let i=0;i< origMats.length;i++){
-                                    if (origMats[i] === o.material[i]){
+                                for (let i = 0; i < origMats.length; i++) {
+                                    if (origMats[i] === o.material[i]) {
                                         newMat = false;
                                         break;
                                     }
                                 }
-                                if (newMat){
+                                if (newMat) {
                                     origMats.push(o.material[i]);
                                 }
                             }
                         }
                     }
-                    if (o.parent.isGroup) {
+                    if (o.parent.isGroup && o.parent.parent != null) {
                         // multi mesh
                         let tarObj = o.parent.parent;
                         // set "gameObject" as target in mesh
                         o.userData.gameObject = tarObj;
                         // set "mesh" as target in gameObject
+
                         if (tarObj.userData.mesh === undefined)
                             tarObj.userData.mesh = [];
                         tarObj.userData.mesh.push(o);
@@ -127,6 +128,9 @@ class BuilderExtras {
                         //     setSubmeshGroups(o);
                         // }
                         let tarObj = o.parent;
+                        if (o.parent.parent == null) {
+                            tarObj = o;
+                        }
                         o.userData.gameObject = tarObj;
                         tarObj.userData.mesh = o;
                         if (tarObj.userData.layer !== undefined) {
@@ -224,10 +228,10 @@ class BuilderExtras {
 
         //CONVERT MATERIALS
         let changeAll = quality == 0 ? true : false;
-        if (quality < 2){
+        if (quality < 2) {
             ConvertMaterials.convertMaterialsToType(gltf, THREE.MeshLambertMaterial, changeAll);
-            const light = new THREE.AmbientLight( 0xc8c8c8 ); // soft white light
-            scene.add( light );
+            const light = new THREE.AmbientLight(0xc8c8c8); // soft white light
+            scene.add(light);
         }
 
         //NAVMESH
@@ -250,7 +254,7 @@ class BuilderExtras {
         // OFFSET SECONDARY UVS
 
         // COMBINED BUFFER GEOMETRY
-        function setSubmeshGroups(tarMesh) {    // now included in gltf loader
+        function setSubmeshGroups(tarMesh) { // now included in gltf loader
             let data = tarMesh.userData.submeshes;
             let mats = [];
             for (var i = 0; i < data.length; i++) {

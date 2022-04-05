@@ -1,4 +1,4 @@
-import * as THREE from '../../../build/three.module.js';
+import * as THREE from 'three';
 import * as BufferGeometryUtils from '../utils/BufferGeometryUtils.js';
 class BatchCombine {
     constructor(gltf, combinedOnStart) {
@@ -39,19 +39,19 @@ class BatchCombine {
                         if (o.material.length === undefined) {
                             let newMat = true;
                             for (var j = 0; j < origMats.length; j++) {
-                                if (o.material === origMats[j]){
+                                if (o.material === origMats[j]) {
                                     newMat = false;
                                     if (CheckIfStatic(o))
                                         meshSameMaterial[j].push(o);
                                 }
                             }
-                            if (newMat === true){
+                            if (newMat === true) {
                                 origMats.push(o.material);
-                                meshSameMaterial[origMats.length-1] = [];
+                                meshSameMaterial[origMats.length - 1] = [];
                                 if (CheckIfStatic(o))
-                                    meshSameMaterial[origMats.length-1].push(o);
+                                    meshSameMaterial[origMats.length - 1].push(o);
                             }
-                            
+
 
 
 
@@ -76,9 +76,9 @@ class BatchCombine {
 
         }
 
-        function CheckIfStatic(mesh){
-            if (mesh.userData.gameObject !== undefined){
-                if (mesh.userData.gameObject.userData.batching !== undefined){
+        function CheckIfStatic(mesh) {
+            if (mesh.userData.gameObject !== undefined) {
+                if (mesh.userData.gameObject.userData.batching !== undefined) {
                     if (mesh.userData.gameObject.userData.batching === true) {
                         return true;
                     }

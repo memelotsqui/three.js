@@ -1,5 +1,5 @@
-import { TextureLoader } from '../../../../build/three.module.js';
-import { Object3D } from '../../../../build/three.module.js';
+import { TextureLoader } from 'three';
+import { Object3D } from 'three';
 
 import BoxComponent from './core/BoxComponent.js';
 import MeshUIComponent from './core/MeshUIComponent.js';

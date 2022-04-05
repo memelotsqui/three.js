@@ -56,8 +56,13 @@ import {
     Texture,
     TextureLoader,
     //custom
+    AudioLoader,
+    Audio,
+    PositionalAudio,
+    AudioListener,
     CubeTexture,
     CubeReflectionMapping,
+    CubeRefractionMapping,
     //end custom
     TriangleFanDrawMode,
     TriangleStripDrawMode,
@@ -81,6 +86,9 @@ class GLTFLoader extends Loader {
         this.ktx2Loader = null;
         this.meshoptDecoder = null;
 
+        //custom new memo
+        this.audioListener = null;
+
         this.pluginCallbacks = [];
 
         this.register(function(parser) {
@@ -98,6 +106,12 @@ class GLTFLoader extends Loader {
         this.register(function(parser) {
 
             return new GLTFTextureWebPExtension(parser);
+
+        });
+
+        this.register(function(parser) {
+
+            return new GLTFAudioExtension(parser);
 
         });
 
@@ -240,6 +254,14 @@ class GLTFLoader extends Loader {
 
     }
 
+    //custom memo
+    setAudioListener(listener) {
+
+        this.audioListener = listener;
+        return this;
+
+    }
+
     setMeshoptDecoder(meshoptDecoder) {
 
         this.meshoptDecoder = meshoptDecoder;
@@ -324,7 +346,8 @@ class GLTFLoader extends Loader {
             requestHeader: this.requestHeader,
             manager: this.manager,
             ktx2Loader: this.ktx2Loader,
-            meshoptDecoder: this.meshoptDecoder
+            meshoptDecoder: this.meshoptDecoder,
+            audioListener: this.audioListener
 
         });
 
@@ -373,7 +396,6 @@ class GLTFLoader extends Loader {
                         break;
 
                     default:
-
                         if (extensionsRequired.indexOf(extensionName) >= 0 && plugins[extensionName] === undefined) {
 
                             console.warn('THREE.GLTFLoader: Unknown extension "' + extensionName + '".');
@@ -462,7 +484,9 @@ const EXTENSIONS = {
     KHR_TEXTURE_TRANSFORM: 'KHR_texture_transform',
     KHR_MESH_QUANTIZATION: 'KHR_mesh_quantization',
     EXT_TEXTURE_WEBP: 'EXT_texture_webp',
-    EXT_MESHOPT_COMPRESSION: 'EXT_meshopt_compression'
+    EXT_MESHOPT_COMPRESSION: 'EXT_meshopt_compression',
+
+    KHR_AUDIO: 'KHR_audio'
 };
 
 /**
@@ -1087,11 +1111,128 @@ class GLTFTextureBasisUExtension {
 
 }
 
+
+//custom new memo
+class GLTFAudioExtension {
+
+    constructor(parser) {
+
+        this.parser = parser;
+        this.name = EXTENSIONS.KHR_AUDIO;
+
+    }
+
+    createNodeAttachment(nodeIndex) {
+
+        const self = this;
+        const parser = this.parser;
+        const json = parser.json;
+        const nodeDef = json.nodes[nodeIndex];
+        const emitterDef = (nodeDef.extensions && nodeDef.extensions[this.name]) || {};
+        const emitterIndex = emitterDef.emitter;
+
+
+        if (emitterIndex === undefined) return null;
+
+        const audioListener = parser.options.audioListener;
+        if (audioListener == null) {
+
+            console.warn("No audio listener has been set in GLTF Loader, skipping sound load");
+            return null;
+        }
+
+        return this._loadEmitter(emitterIndex).then(function(emitter) {
+
+            return emitter;
+
+        });
+
+    }
+
+    _loadEmitter(emitterIndex) {
+        const parser = this.parser;
+        const audioListener = parser.options.audioListener;
+
+
+        const json = parser.json;
+        const extensions = (json.extensions && json.extensions[this.name]) || {};
+        const emitterDefs = extensions.emitters || [];
+        const emitterDef = emitterDefs[emitterIndex];
+
+        return this._loadAudio(emitterDef.source).then(function(audioBuffer) {
+
+            let emitter = null;
+            switch (emitterDef.type) {
+                case "global":
+                    emitter = new Audio(audioListener);
+                    break;
+                case "positional":
+                    emitter = new PositionalAudio(audioListener);
+                    break;
+
+            }
+
+            emitter.name = emitterDef.name;
+            // should use gain node?
+            emitter.setVolume(emitterDef.gain);
+            emitter.setBuffer(audioBuffer);
+            emitter.setLoop(emitterDef.loop);
+            emitter.autoplay = emitterDef.playing;
+
+            if (emitterDef.type === "positional") {
+                const positionalDef = emitterDef.positional;
+                const distanceModel = positionalDef.distanceModel;
+
+                emitter.setDirectionalCone(MathUtils.radToDeg(positionalDef.coneInnerAngle), MathUtils.radToDeg(positionalDef.coneOuterAngle), positionalDef.coneOuterGain);
+                emitter.setDistanceModel(distanceModel);
+
+                if (distanceModel === "linear")
+                    emitter.setMaxDistance(positionalDef.maxDistance);
+                emitter.setRefDistance(positionalDef.refDistance);
+                emitter.setRolloffFactor(positionalDef.rolloffFactor);
+            }
+
+            return emitter;
+        });
+    }
+
+    _loadAudio(audioIndex) {
+
+        const name = this.name;
+        const parser = this.parser;
+        const json = parser.json;
+
+        const extensions = (json.extensions && json.extensions[name]) || {};
+        const sources = extensions.sources || [];
+        const source = sources[audioIndex];
+
+        let loader = parser.audioLoader;
+
+        if (!json.extensions || !json.extensions[name]) {
+
+            return null;
+
+        }
+
+        if (source.uri) {
+
+            const handler = parser.options.manager.getHandler(source.uri);
+            if (handler !== null) loader = handler;
+
+        }
+
+        return parser.loadAudioFile(audioIndex, source, parser.audioLoader);
+
+    }
+
+}
+
 /**
  * WebP Texture Extension
  *
  * Specification: https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Vendor/EXT_texture_webp
  */
+
 class GLTFTextureWebPExtension {
 
     constructor(parser) {
@@ -1182,6 +1323,8 @@ class GLTFTextureWebPExtension {
 
                     let cubeTexture = new CubeTexture(cubeImages,
                         CubeReflectionMapping);
+                    // let cubeTexture = new CubeTexture(cubeImages,
+                    //     CubeRefractionMapping);
 
                     if (cubeTextureDef.name) cubeTexture.name = cubeTextureDef.name;
 
@@ -2030,7 +2173,7 @@ CustomCubicSplineInterpolant.prototype.interpolate_ = function(i1, t0, t, t1) {
 
 
     }
-    
+
     return result;
 
 };
@@ -2157,7 +2300,6 @@ function addUnknownExtensionsToUserData(knownExtensions, object, objectDef) {
     // Add unknown glTF extensions to an object's userData.
 
     for (const name in objectDef.extensions) {
-
         if (knownExtensions[name] === undefined) {
 
             object.userData.gltfExtensions = object.userData.gltfExtensions || {};
@@ -2395,6 +2537,7 @@ class GLTFParser {
         this.cameraCache = { refs: {}, uses: {} };
         this.lightCache = { refs: {}, uses: {} };
 
+        this.audioCache = {};
         this.textureCache = {};
 
         // Track node names, to ensure no duplicates
@@ -2417,6 +2560,9 @@ class GLTFParser {
 
         this.fileLoader = new FileLoader(this.options.manager);
         this.fileLoader.setResponseType('arraybuffer');
+
+        // custom new memo
+        this.audioLoader = new AudioLoader(this.options.manager);
 
         if (this.options.crossOrigin === 'use-credentials') {
 
@@ -3044,6 +3190,80 @@ class GLTFParser {
 
         return this.loadTextureImage(textureIndex, source, loader);
 
+    }
+
+    // custom new memo
+    loadAudioFile(audioIndex, source, loader) {
+        const parser = this;
+        const json = this.json;
+        const options = this.options;
+
+        const cacheKey = "Audio" + ':' + (source.uri || source.bufferView);
+
+        if (this.audioCache[cacheKey]) {
+
+            // See https://github.com/mrdoob/three.js/issues/21559.
+            return this.audioCache[cacheKey];
+
+        }
+
+        const URL = self.URL || self.webkitURL;
+
+        let sourceURI = source.uri || '';
+        let isObjectURL = false;
+
+        if (source.bufferView !== undefined) {
+
+            // Load binary image data from bufferView, if provided.
+
+            sourceURI = parser.getDependency('bufferView', source.bufferView).then(function(bufferView) {
+
+                isObjectURL = true;
+                const blob = new Blob([bufferView], { type: source.mimeType });
+                sourceURI = URL.createObjectURL(blob);
+                return sourceURI;
+
+            });
+
+        } else if (source.uri === undefined) {
+
+            throw new Error('THREE.GLTFLoader: Audio ' + audioIndex + ' is missing URI and bufferView');
+
+        }
+        const promise = Promise.resolve(sourceURI).then(function(sourceURI) {
+
+            return new Promise(function(resolve, reject) {
+
+                let onLoad = resolve;
+
+                loader.load(LoaderUtils.resolveURL(sourceURI, options.path), onLoad, undefined, reject);
+
+            });
+
+        }).then(function(audio) {
+
+            // Clean up resources and configure Texture.
+
+            if (isObjectURL === true) {
+
+                URL.revokeObjectURL(sourceURI);
+
+            }
+
+            parser.associations.set(audio, { audios: audioIndex });
+
+            return audio;
+
+        }).catch(function() {
+
+            console.error('THREE.GLTFLoader: Couldn\'t load audio', sourceURI);
+            return null;
+
+        });
+
+        this.audioCache[cacheKey] = promise;
+
+        return promise;
     }
 
     loadTextureImage(textureIndex, source, loader) {
@@ -4221,16 +4441,15 @@ class GLTFParser {
         //console.log(syncLayer);
         //const transitionsDefs = syncLayer == null ? animLayerDef.transitions : syncLayer.transitions;
 
-        if (syncLayer == null){
-            if (animLayerDef.states !== null){
+        if (syncLayer == null) {
+            if (animLayerDef.states !== null) {
                 for (let k = 0, kl = animLayerDef.states.length; k < kl; k++) {
                     const stateDef = animLayerDef.states[k];
                     pendingStates.push(parser.assignAnimationState(stateDef, layer, animationController));
                 }
             }
-        }
-        else{
-            if (syncLayer.states != null){
+        } else {
+            if (syncLayer.states != null) {
                 for (let k = 0, kl = syncLayer.states.length; k < kl; k++) {
                     const stateDef = syncLayer.states[k];
                     stateDef.clip = animLayerDef.syncedClips[k]
@@ -4247,7 +4466,7 @@ class GLTFParser {
 
             // crate and assign transitions to created states
             const transitionsDefs = targetLayer.transitions;
-            if (transitionsDefs != null){
+            if (transitionsDefs != null) {
                 for (let k = 0, kl = transitionsDefs.length; k < kl; k++) {
                     const transitionDef = transitionsDefs[k];
 
@@ -4282,7 +4501,7 @@ class GLTFParser {
 
         const parser = this;
 
-        const clipIndex = animStateDef.clip == null ? -1 :animStateDef.clip;
+        const clipIndex = animStateDef.clip == null ? -1 : animStateDef.clip;
 
         if (clipIndex === -1) {
             const animState = animationLayer.createState(animStateDef.name);
@@ -4333,7 +4552,7 @@ class GLTFParser {
             const pendingLayers = [];
             for (let j = 0, jl = layersDef.length; j < jl; j++) {
                 const syncLayer = layersDef[j].sync == null ? null : layersDef[layersDef[j].sync];
-                pendingLayers.push(parser.assignAnimationLayer(layersDef[j], animationController,syncLayer));
+                pendingLayers.push(parser.assignAnimationLayer(layersDef[j], animationController, syncLayer));
             }
             return Promise.all(pendingLayers).then(function(layers) {
 
@@ -4555,7 +4774,6 @@ class GLTFParser {
         const json = this.json;
         const extensions = this.extensions;
         const parser = this;
-
         const nodeDef = json.nodes[nodeIndex];
 
         //const nodeName = nodeDef.name ? parser.createUniqueName( nodeDef.name ) : '';

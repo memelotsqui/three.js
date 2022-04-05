@@ -1,4 +1,4 @@
-import { Mesh } from '../../../../build/three.module.js';
+import { Mesh } from 'three';
 import { mergeBufferGeometries } from '../../utils/BufferGeometryUtils.js';
 //import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import MSDFGlyph from './MSDFGlyph.js';

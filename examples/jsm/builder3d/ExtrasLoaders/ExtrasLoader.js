@@ -10,7 +10,7 @@ class ExtrasLoader {
         this.rules = rules;
         this.scene = builder.scene;
         this.quality = builder.quality;
-        this.whiteLightmap = new THREE.TextureLoader().load('https://ipfs.io/ipfs/QmPRgv5baksBTYM3UM3Wt5BaYVnx7yaJJMEweJT6TokihW');
+        this.whiteLightmap = new THREE.TextureLoader().load('https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/textures/white.jpg');
 
         this.renderer = builder.renderer;
     }
@@ -83,6 +83,7 @@ class ExtrasLoader {
             if (model.userData.background !== undefined) {
                 if (model.userData.background.cubeTexture !== undefined) {
                     let backgroundMap = gltf.cubeTextures[model.userData.background.cubeTexture.index];
+                    console.log(backgroundMap);
                     // -ON SCENE
                     if (affectSceneEnvironment) {
                         scope.scene.background = backgroundMap;
@@ -90,6 +91,7 @@ class ExtrasLoader {
                         scope.scene.background.encoding = THREE.sRGBEncoding;
                     }
                     if (addMeshBackground) {
+                        console.log("add it");
                         const scale = model.userData.background.cubeTexture.scale === undefined ? 1 : model.userData.background.cubeTexture.scale;
                         scope.rules.setSkybox(backgroundMap, scale);
                     }
@@ -112,6 +114,7 @@ class ExtrasLoader {
                     extras.navMesh.material = new THREE.MeshBasicMaterial();
                 }
             }
+
 
 
             // ASSIGN MESH AND GROUP CONNECTIONS CONNECTIONS TO NODES
@@ -153,7 +156,8 @@ class ExtrasLoader {
                                 }
                             }
                         }
-                        if (o.parent.isGroup) {
+                        if (o.parent.isGroup && o.parent.parent != null) {
+
                             // MULTI MESH - GLTF IMPORTER CREATES GROUPED MESHES, SO THE ORIGINAL OBJECT IS 2 PARENTS ABOVE
                             let tarObj = o.parent.parent;
                             // set "gameObject" as target in mesh
@@ -173,11 +177,14 @@ class ExtrasLoader {
                                     o.parent.layers.set(tarObj.userData.layer)
                                     o.layers.set(tarObj.userData.layer)
                                 }
-
                             }
                         } else {
+
                             // SINGLE MESH - IN CUSTOM EXPORTER, EVERY MESH IS STORED AS A LEAF NODE, IN CASE QUANTIZATION IS USED
                             let tarObj = o.parent;
+                            if (o.parent.parent == null) {
+                                tarObj = o;
+                            }
                             o.userData.gameObject = tarObj;
                             tarObj.userData.mesh = o;
                             if (tarObj.userData.layer !== undefined) {
@@ -208,6 +215,24 @@ class ExtrasLoader {
             let basicMirrorMaterial = null;
             let stdMirrorMaterial = null;
             model.traverse((o) => {
+                if (o.userData.deb !== undefined) {
+                    console.log("hehere");
+                    console.log(o.matrixWorld);
+                    const m1 = new THREE.Matrix4();
+                    const m = new THREE.Matrix4();
+
+                    // m1.set(1.06061570253976, -2.2052290772928, 3.86445625906416, 1,
+                    //     1.6940493973175998, 1.5084786692412, 2.2476388531374, 2,
+                    //     0.07274103286528, -2.9768201730924, 4.00176201671652, -3,
+                    //     0, 0, 0, 1);
+                    //console.log(m1);
+                    // m.fromArray([1.06061570253976, -2.2052290772928, -3.86445625906416, 1,
+                    //         1.6940493973175998, 1.5084786692412, 2.2476388531374, 2,
+                    //         0.07274103286528, -2.9768201730924, 4.00176201671652, -3,
+                    //         0, 0, 0, 1
+                    //     ])
+                    //console.log(m);
+                }
                 //SET IMPORTANT MATERIALS
                 if (o.userData.keepMat) {
                     let changeChilds = true;

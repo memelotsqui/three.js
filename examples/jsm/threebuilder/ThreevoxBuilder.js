@@ -4,7 +4,7 @@ import { GLTFLoader } from '../loaders/GLTFLoader.js';
 import { KTX2Loader } from '../loaders/KTX2Loader.js';
 import { BuilderExtras } from './BuilderExtras.js';
 import '../libs/hammer.min.js';
-import * as THREE from '../../../build/three.module.js';
+import * as THREE from 'three';
 import { VRButton } from '../webxr/VRButton.js';
 import { XRControllerModelFactory } from '../webxr/XRControllerModelFactory.js';
 import { XRHandModelFactory } from '../webxr/XRHandModelFactory.js';
@@ -112,7 +112,6 @@ gl_FragColor = vec4(color1.rgb + color2.rgb, 1.0);}`;
         SetupRaycaster();
 
         mouse = new THREE.Vector2();
-
         iOSDevice = iOS();
 
         function SetupRaycaster() {
@@ -252,7 +251,7 @@ gl_FragColor = vec4(color1.rgb + color2.rgb, 1.0);}`;
                     floor_4.push(o);
                 }
                 if (o.userData.roofGroup !== undefined) {
-                    roofGroup.push[o];
+                    roofGroup.push(o);
                 }
                 if (o.userData.interactables !== undefined) {
                     threev_interactables = o;
@@ -306,6 +305,7 @@ gl_FragColor = vec4(color1.rgb + color2.rgb, 1.0);}`;
 
 
         function setThreevoxData(data) {
+
             initPos = new THREE.Vector3(data.initPos[0], data.initPos[1], data.initPos[2]);
 
             allFloors[0] = floor_1;

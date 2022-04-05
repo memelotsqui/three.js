@@ -40,6 +40,7 @@ class Builder3D {
         this.container = null;
         this.renderer = null;
         this.camera = null;
+        this.audioListener = null;
         this.controls = null;
         this.gltfLoader = new GLTFLoader();
 
@@ -104,6 +105,9 @@ class Builder3D {
                 scope.scene = new THREE.Scene();
                 scope.scene.add(scope.camera);
 
+                scope.audioListener = new THREE.AudioListener();
+                scope.camera.add(scope.audioListener);
+
                 let renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
                 renderer.setClearColor(0xFFFFFF, 1);
                 renderer.setPixelRatio(window.devicePixelRatio);
@@ -120,10 +124,11 @@ class Builder3D {
                     .detectSupport(renderer);
 
                 scope.gltfLoader.setKTX2Loader(ktx2loader);
+                scope.gltfLoader.setAudioListener(scope.audioListener);
 
                 scope.renderer = renderer;
                 scope.rules = new WorldRules(scope);
-                testingCode();
+                //testingCode();
 
 
 
@@ -157,7 +162,7 @@ class Builder3D {
             bulbLight.position.set(2, 2, 4);
             //scope.scene.add(bulbLight);
 
-            const light = new THREE.AmbientLight( 0x111111 ); // white light
+            const light = new THREE.AmbientLight(0x111111); // white light
             light.intensity = 1;
             //scope.scene.add( light );
 
@@ -324,7 +329,7 @@ class Builder3D {
                             scope.loadSmart(smart.location, smart.userData, function() { loadedModels++ });
                         }
                     });
-                    console.log(loadedModels);
+                    //console.log(loadedModels);
                     //if (loadedModels...)
                     //if (onLoad != null) onLoad();
                 } else {
@@ -332,13 +337,13 @@ class Builder3D {
                 }
             })
             .catch(error => console.error(error));
-        console.log("after");
+        //console.log("after");
     }
 
     async loadSpace(location, customData, onLoad) {
         const scope = this;
         customData = customData === undefined ? {} : customData;
-
+        //console.log("space: " + location);
         customData.affectSceneEnvironment = customData.affectSceneEnvironment === undefined ? true : customData.affectSceneEnvironment;
         customData.addMeshBackground = customData.addMeshBackground === undefined ? true : customData.addMeshBackground;
         scope.loadSmart(location, customData, function loaded(smart) {
@@ -352,6 +357,8 @@ class Builder3D {
                 onLoad(smart);
         });
     }
+
+
     async loadSmart(location, customData, onLoad, addToSession = true) {
         const scope = this;
         //console.log(`${location}-----new---`);
