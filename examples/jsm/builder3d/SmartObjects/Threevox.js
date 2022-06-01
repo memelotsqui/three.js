@@ -1,4 +1,6 @@
-import { SmartObject, ObjectComponent } from './SmartObject.js'
+//import { SmartObject, ObjectComponent } from './SmartObject.js'
+import { SmartObject, ObjectComponent } from 'builder3D/SmartObjects/SmartObject.js'
+
 
 class Threevox extends SmartObject {
     constructor(gltf, customData, builder, onLoad) { // must be called when loaded
@@ -22,9 +24,7 @@ class Threevox extends SmartObject {
                 });
                 //o.visible = false;
             }
-            if (o.userData.ambient_sound !== undefined) {
-                o.play();
-            }
+
             if (o.userData.teleportVRTo !== undefined) {
                 //this.addComponent(new TeleportVRTo(o, this.gltf.nodes[o.userData.teleportVRTo.objectPosition]))
             }

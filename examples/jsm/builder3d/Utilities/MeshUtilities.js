@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import * as BufferGeometryUtils from '../utils/BufferGeometryUtils.js';
+import * as BufferGeometryUtils from '../../utils/BufferGeometryUtils.js';
 
 class MeshUtilities {
     // BATCHING: IS IT CALLED FOR ALL OBJECTS THAT SHARE THE SAME MATERIAL?, OR ONLY FOR THE CHILDS OF TARGET OBJECT

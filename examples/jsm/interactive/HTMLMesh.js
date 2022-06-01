@@ -12,10 +12,11 @@ class HTMLMesh extends Mesh {
 	constructor( dom ) {
 
 		const texture = new HTMLTexture( dom );
-
+		texture.offset.x = -0.02;
+		texture.offset.y = 0.02;
+		
 		const geometry = new PlaneGeometry( texture.image.width * 0.001, texture.image.height * 0.001 );
 		const material = new MeshBasicMaterial( { map: texture, toneMapped: false } );
-
 		super( geometry, material );
 
 		function onEvent( event ) {
@@ -56,7 +57,7 @@ class HTMLTexture extends CanvasTexture {
 		this.dom = dom;
 
 		this.anisotropy = 16;
-		this.encoding = sRGBEncoding;
+		// this.encoding = sRGBEncoding;
 		this.minFilter = LinearFilter;
 		this.magFilter = LinearFilter;
 
@@ -186,7 +187,7 @@ function html2canvas( element ) {
 	function drawElement( element, style ) {
 
 		var x = 0, y = 0, width = 0, height = 0;
-
+		
 		if ( element.nodeType === 3 ) {
 
 			// text
@@ -203,8 +204,13 @@ function html2canvas( element ) {
 			drawText( style, x, y, element.nodeValue.trim() );
 
 		} else {
-
+			if ( element.style == null) return;
 			if ( element.style.display === 'none' ) return;
+
+			if (element.nodeName === "INPUT")	{
+				//console.log(element);
+				//console.log("element.nodeName");
+			}
 
 			var rect = element.getBoundingClientRect();
 
@@ -308,7 +314,7 @@ function htmlevent( element, event, x, y ) {
 
 	function traverse( element ) {
 
-		if ( element.nodeType !== 3 ) {
+		if ( element.nodeType !== 3 && element.style != null) {
 
 			const rect = element.getBoundingClientRect();
 

@@ -1,4 +1,5 @@
 import { GLTFLoader } from '../loaders/GLTFLoader.js';
+import { DRACOLoader } from '../loaders/DRACOLoader.js';
 import { KTX2Loader } from '../loaders/KTX2Loader.js';
 import * as THREE from 'three';
 import { BuilderButton } from './BuilderButton.js';
@@ -9,15 +10,16 @@ import { SmartObject } from './SmartObjects/SmartObject.js';
 
 
 
+
+
 class Builder3D {
     //constructor(containerID, quality, debug, baseObjects = {}) {
     constructor(containerID, parameters, loadIndex = false, builderButton = null) {
         const scope = this;
         const defaultQuality = 1; // change to calculate depending on device
-        const clock = new THREE.Clock();
-        this.xrSession = null;
 
         const ktx2TranscoderPath = 'https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/libs/basis/';
+        const dracoDecoderPath = 'https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/libs/draco/';
 
         this.builderButton = builderButton;
         if (builderButton == null) {
@@ -27,13 +29,15 @@ class Builder3D {
 
         if (parameters == null) parameters = {};
         if (parameters.debug == null) parameters.debug = false
-            //button
-            //const switchButton = new BuilderButton(buttonID, this)
 
+        this.xrSession = null;
         this.baseObjects = getBasicObjects();
+        this.smartTeleporter = null;
 
         this.scene = null; //THE MAIN SCENE, BY DEFAULT IS EMPTY, BUT WILL HOLD EVERY SCENE
         this.hiddenScene = new THREE.Object3D();
+
+        const clock = new THREE.Clock();
         this.clockDelta;
 
         this.quality = parameters.quality == null ? defaultQuality : parameters.quality;
@@ -41,27 +45,24 @@ class Builder3D {
         this.renderer = null;
         this.camera = null;
         this.audioListener = null;
-        this.controls = null;
         this.gltfLoader = new GLTFLoader();
+        this.rules = null; //the rules to apply to each world
 
-
-
+        this._userInteracted = false;
 
         this.currentPage = "";
         this.pageSession = [];
 
-        this.rules = null;
-
         this.room = -1;
         this.smartObjects = [];
 
-        this.worldRules = null; //the rules to apply to each world
-
-        //let mouse, touchHammer;
         let statsVR, stats;
-        let iOSDevice = false;
 
         SetupViewer(containerID);
+
+
+
+
 
         this.gltfLoader.manager.setURLModifier((url) => {
             if (url.startsWith('https:') || url.startsWith('http:'))
@@ -69,7 +70,8 @@ class Builder3D {
             return `${ scope.currentPage + url}`;
         })
 
-
+        this.container.addEventListener("click", onUserFirstInteract, false);
+        window.addEventListener('resize', onScreenResize, false);
 
         //stats
         if (parameters.debug == true) {
@@ -78,7 +80,15 @@ class Builder3D {
             statsVR = new StatsVR(scope.scene, scope.camera);
         }
 
-        iOSDevice = iOS();
+        if (!iOS()) {
+            setRenderDeviceRatio(1 / getDevicePixelRatio());
+        }
+
+        function onUserFirstInteract() {
+            scope.container.removeEventListener("click", onUserFirstInteract, false);
+            scope._onUserFirstInteract();
+        }
+
         animate();
 
         function getBasicObjects() {
@@ -99,11 +109,15 @@ class Builder3D {
                 console.log("created div for xr");
             }
             if (scope.container != null) {
+
                 scope.camera = new THREE.PerspectiveCamera(90, scope.container.clientWidth / scope.container.clientHeight, .1, 20000)
                 scope.camera.position.set(-20, 20, 20);
                 scope.camera.layers.enableAll();
                 scope.scene = new THREE.Scene();
                 scope.scene.add(scope.camera);
+
+                //test fog
+                scope.scene.fog = new THREE.FogExp2(0xffffff, 0);
 
                 scope.audioListener = new THREE.AudioListener();
                 scope.camera.add(scope.audioListener);
@@ -125,12 +139,12 @@ class Builder3D {
 
                 scope.gltfLoader.setKTX2Loader(ktx2loader);
                 scope.gltfLoader.setAudioListener(scope.audioListener);
+                scope.gltfLoader.setDRACOLoader(createDracoLoader());
 
                 scope.renderer = renderer;
                 scope.rules = new WorldRules(scope);
                 //testingCode();
-
-
+                loadBasics();
 
 
                 if (loadIndex === true) {
@@ -140,8 +154,29 @@ class Builder3D {
             }
         }
 
+
+
+        //console.log(this.loadJsonSmart);
+        //console.log(this.gltfLoader.loadAsync);
+
+        function loadBasics() {
+            scope.loadSmart("./teleporter_3/gltf.gltf", {}, (sm) => {
+                scope.smartTeleporter = sm;
+            }, false);
+        }
+
+        function createDracoLoader() {
+            const loader = new DRACOLoader();
+            loader.setDecoderPath(dracoDecoderPath);
+            loader.preload();
+            return loader;
+        }
+
         function testingCode() {
             console.log("TESTING MODE");
+            document.addEventListener("click", () => {
+
+            });
             //console.log(scope.renderer.physicallyCorrectLights);
             scope.renderer.physicallyCorrectLights = true;
             //let hemiLight = new THREE.HemisphereLight(0xddeeff, 0x0f0e0d, 0.02);
@@ -169,11 +204,8 @@ class Builder3D {
             //scope.renderer.toneMappingExposure = 7;
         }
 
-        if (!iOSDevice) {
-            //document.body.appendChild(VRButton.createButton(scope.renderer));
-            setRenderDeviceRatio(1 / getDevicePixelRatio());
-        }
 
+        // RETURNS WETHER DEVICE IS IOS OR NOT
         function iOS() {
             return [
                     'iPad Simulator',
@@ -233,11 +265,10 @@ class Builder3D {
 
 
         function update() {
-            scope.rules.update();
             scope.clockDelta = clock.getDelta();
+            scope.rules.update(scope.clockDelta);
             tick(scope.clockDelta);
             scope.renderer.render(scope.scene, scope.camera);
-            //scope.controls.update();
             if (parameters.debug == true) {
                 stats.update();
                 statsVR.update();
@@ -253,14 +284,17 @@ class Builder3D {
                 }
             }
         }
-        window.addEventListener('resize', onScreenResize, false);
 
         function onScreenResize() {
-            // call onscreen resize of smart object
             scope.camera.aspect = scope.container.clientWidth / scope.container.clientHeight;
             scope.camera.updateProjectionMatrix();
             scope.renderer.setSize(scope.container.clientWidth, scope.container.clientHeight);
             scope.renderer.rect = scope.renderer.domElement.getBoundingClientRect();
+            for (let i = 0; i < scope.smartObjects.length; i++) {
+                if (scope.smartObjects[i] != null) {
+                    scope.smartObjects[i].onScreenResize(scope.container)
+                }
+            }
         }
 
         function setRenderDeviceRatio(value) {
@@ -283,21 +317,21 @@ class Builder3D {
                 document.exitFullscreen();
             }
         }
-        //this.loadJsonSmart('https://pio.lu/xr-index.json'); // /xr-public/ cors '*'
 
     }
 
-    clearSession() {
-        this.pageSession.forEach(smart => {
-
-            smart.dispose();
-
+    clearSession(session) {
+        session.forEach(smart => {
+            //console.log(smart);
+            if (smart != null) {
+                smart.dispose();
+            }
         });
-        this.pageSession = [];
     }
 
     async loadPage(page, onLoad) {
         const scope = this;
+
         this.loadSession(`https://${page}/xr-index.json`,
             function() {
                 scope.currentPage = `https://${page}/`;
@@ -307,13 +341,33 @@ class Builder3D {
 
     async loadSession(jsonLocation, onJsonLoad, onLoad, clearLastSession = true) {
         const scope = this;
-        this.loadJsonSmart(jsonLocation,
-            function() { // must have allow cors
-                if (clearLastSession === true)
-                    scope.clearSession();
-                if (onJsonLoad != null) onJsonLoad();
+        this.loadJsonSmart(jsonLocation, // must have allow cors
+            // on finished loading the json file
+            function() {
+                let sessionCleared = false;
+                if (scope.smartTeleporter != null) {
+                    const lastSession = scope.pageSession;
+                    scope.smartTeleporter.startTeleport(function() {
+                        if (clearLastSession === true) {
+                            scope.clearSession(lastSession);
+                            sessionCleared = true;
+                        }
+                    });
+                }
+
+                if (clearLastSession === true) {
+                    scope.pageSession = [];
+                    if (sessionCleared === false) scope.clearSession(scope.pageSession);
+                }
+
+                if (onJsonLoad != null)
+                    onJsonLoad();
             },
-            onLoad);
+            // on finished loading all smart models
+            function() {
+                if (onLoad != null) onLoad();
+                if (scope.smartTeleporter != null) scope.smartTeleporter.endTeleport();
+            });
     }
 
     async loadJsonSmart(location, onJsonLoad, onLoad) {
@@ -324,9 +378,17 @@ class Builder3D {
                 if (onJsonLoad != null) onJsonLoad();
                 if (data.smartObjects !== undefined) {
                     let loadedModels = 0;
+                    const size = data.smartObjects.length;
+                    console.log(data.smartObjects);
                     data.smartObjects.forEach(smart => {
                         if (smart.location !== undefined) {
-                            scope.loadSmart(smart.location, smart.userData, function() { loadedModels++ });
+                            scope.loadSmart(smart.location, smart.userData, function() {
+                                loadedModels++
+                                if (loadedModels == size) {
+                                    if (onLoad != null) onLoad();
+                                    console.log("finishes, check");
+                                }
+                            });
                         }
                     });
                     //console.log(loadedModels);
@@ -344,6 +406,7 @@ class Builder3D {
         const scope = this;
         customData = customData === undefined ? {} : customData;
         //console.log("space: " + location);
+        console.log("loadsspace");
         customData.affectSceneEnvironment = customData.affectSceneEnvironment === undefined ? true : customData.affectSceneEnvironment;
         customData.addMeshBackground = customData.addMeshBackground === undefined ? true : customData.addMeshBackground;
         scope.loadSmart(location, customData, function loaded(smart) {
@@ -358,27 +421,39 @@ class Builder3D {
         });
     }
 
-
+    // ADDING TO SESSION WILL REMOVE ELEMENTS WJHEN A NEW SESSION IS LOADED
     async loadSmart(location, customData, onLoad, addToSession = true) {
         const scope = this;
         //console.log(`${location}-----new---`);
         customData = customData === undefined ? {} : customData;
         scope.loadGLTF(location, function loaded(gltf) {
             SmartObject.CreateSmartObject(gltf, customData, scope, function(smart) {
-                if (addToSession) {
-                    scope.pageSession.push(smart);
-                }
+                if (addToSession) scope.pageSession.push(smart);
+
                 scope.smartObjects.push(smart);
-                scope.scene.add(gltf.scene);
-                if (gltf.userData.smartObject !== undefined)
-                    if (gltf.userData.smartObject.smartType !== undefined)
-                        if (gltf.userData.smartObject.smartType === "space")
-                            scope.setRoom(smart);
+                //scope.scene.add(gltf.scene);
+
+                // if (gltf.userData.smartObject !== undefined)
+                //     if (gltf.userData.smartObject.smartType !== undefined)
+                //         if (gltf.userData.smartObject.smartType === "space")
+                //             scope.setRoom(smart);
                 if (onLoad !== undefined)
                     onLoad(smart);
             });
         }, false);
     }
+
+    // loadGLTFAsync(url, onProgress) {
+
+    //     const scope = this;
+
+    //     return new Promise(function(resolve, reject) {
+
+    //         scope.load(url, resolve, onProgress, reject);
+
+    //     });
+
+    // }
 
 
     async loadGLTF(location, onLoad, addToScene = true) {
@@ -393,49 +468,26 @@ class Builder3D {
         }).catch(function(error) { console.error(error) });
     }
 
-    // endXRSession(){
-    //     this.builderButton
-    // }
-    ////
-
-    // async onXRSessionStarted(xrSession) {
-    //     const scope = this;
-    //     console.log(scope);
-    //     console.log(scope.onXRSessionEnded);
-    //     xrSession.addEventListener('end', scope.onXRSessionEnded);
-    //     await scope.renderer.xr.setSession(xrSession);
-    //     scope.xrSession = xrSession;
-
-    // }
-
-    // onXRSessionEnded( /*event*/ ) {
-
-    //     this.xrSession.removeEventListener('end', this.onXRSessionEnded);
-    //     this.xrSession = null;
-
-    // }
-
-    // enterVR() {
-    //     const scope = this;
-    //     if (this.xrSession === null) {
-    //         const sessionInit = { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'high-fixed-foveation-level'] };
-    //         navigator.xr.requestSession('immersive-vr', sessionInit).then(scope.onXRSessionStarted);
-    //     }
-    // } 
-
     async onXRSessionStarted(xrSession) {
-
-
 
     }
 
     onXRSessionEnded( /*event*/ ) {
 
+    }
 
-
+    _onUserFirstInteract() {
+        const scope = this;
+        if (scope._userInteracted === false) {
+            scope._userInteracted = true;
+            scope.smartObjects.forEach(element => {
+                element._onUserFirstInteract()
+            });
+        }
     }
 
     enterVR() {
+        this._onUserFirstInteract();
         const scope = this;
         if (this.xrSession === null) {
             const sessionInit = { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'high-fixed-foveation-level'] };
@@ -453,7 +505,8 @@ class Builder3D {
     exitVR() {
 
         if (this.xrSession !== null) {
-            this.clearSession();
+            this.clearSession(this.pageSession);
+            this.pageSession = [];
             this.xrSession.end();
             // if (`${window.location.protocol}//${window.location.hostname}/` !== this.currentPage) {
             //     window.open(this.currentPage, "_self")
@@ -464,16 +517,14 @@ class Builder3D {
         }
     }
 
-    ////
-
-    setRoom(smart) {
-        // const scope = this;
-        // if (scope.room !== -1) {
-        //     scope.smartObjects[scope.room].dispose();
-        //     scope.smartObjects[scope.room] = null;
-        // }
-        // scope.room = scope.smartObjects.indexOf(smart);
-    }
+    //setRoom(smart) {
+    // const scope = this;
+    // if (scope.room !== -1) {
+    //     scope.smartObjects[scope.room].dispose();
+    //     scope.smartObjects[scope.room] = null;
+    // }
+    // scope.room = scope.smartObjects.indexOf(smart);
+    //}
 
 }
 

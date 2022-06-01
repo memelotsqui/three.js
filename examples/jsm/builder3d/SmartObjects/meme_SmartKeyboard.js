@@ -64,7 +64,7 @@ class meme_SmartKeyboard extends SmartObject {
 
         this.model.position.set(this.model.position.x, this.model.position.y + this.height, this.model.position.z);
     }
-    smartTick() {
+    smartTick(clockDelta) {
         if (this.targetLookAt !== undefined) {
             console.log("looks at");
             this.model.lookAt(this.targetLookAt.position);

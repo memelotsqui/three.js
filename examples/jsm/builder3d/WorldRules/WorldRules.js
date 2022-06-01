@@ -2,11 +2,16 @@ import * as THREE from 'three';
 import { VRuser } from '../Users/VRuser.js';
 import { PCuser } from '../Users/PCuser.js';
 import { ExtrasLoader } from '../ExtrasLoaders/ExtrasLoader.js'
+import { PhysicsEngine } from '../PhysicsEngine/PhysicsEngine.js'
 
 
 // WORLD RULES DEFINES WHEN ARE ACTIONS GOING TO BE TRIGGERED
 class WorldRules {
     constructor(builder) {
+        //testing
+
+
+
         const scope = this;
         this.cubeSkybox = null;
         //this.loadGLTF = builder.loadGLTF;
@@ -16,19 +21,66 @@ class WorldRules {
 
         this.builder = builder;
 
+        // exponential fog
+        this._fog = builder.scene.fog;
+        this._diferentialFog = {
+            color: new THREE.Color(0, 0, 0),
+            density: 0
+        }
+        this._targetFog = {
+            color: new THREE.Color(0, 0, 0),
+            density: 0
+        }
+        this._fogTimer = 0;
+        this._switchedFog = false;
+
+        //test change fog
+        // document.addEventListener("keydown", function(e) {
+        //     if (e.key === "l") {
+        //         scope.setFog(new THREE.Color(0xffffff), 0);
+        //         scope.setFog(new THREE.Color(0xffffff), 10, 3);
+        //     }
+        //     if (e.key === "k") {
+        //         console.log("k key");
+        //         scope.setFog(new THREE.Color(0xffffff), 0, .5);
+        //     }
+        // });
+
+        this.physicsEngine = new PhysicsEngine();
+        console.log(this.physicsEngine);
         this.extrasLoader = new ExtrasLoader(builder, this);
         this.vruser = new VRuser(builder, this);
         this.pcuser = new PCuser(builder, this);
 
         this.onxr = false;
 
-        this.update = function() {
+        this.update = function(clockDelta) {
             //if xr this.VRuser.tick();
             //else  this.PCuser.tick();
-            this.pcuser.tick(builder.clockDelta);
-            this.vruser.tick(builder.clockDelta);
+            this.pcuser.tick(clockDelta);
+            this.vruser.tick(clockDelta);
+            this.physicsEngine.step();
             if (this.cubeSkybox !== null)
                 this.cubeSkybox.tick(builder.clockDelta);
+            changeFog(clockDelta);
+        }
+
+        function changeFog(clockDelta) {
+            if (scope._fogTimer > 0) {
+                scope._fogTimer -= clockDelta;
+                scope._fog.density += scope._diferentialFog.density * clockDelta;
+
+                //scope._fog.color.add(scope._diferentialFog.color.multiplyScalar(clockDelta));
+                scope._fog.color.r += scope._diferentialFog.color.r * clockDelta;
+                scope._fog.color.g += scope._diferentialFog.color.g * clockDelta;
+                scope._fog.color.b += scope._diferentialFog.color.b * clockDelta;
+            } else {
+                if (scope._switchedFog === true) {
+                    scope._fog.density = scope._targetFog.density;
+                    scope._fog.color = {...scope._targetFog.color }
+                    scope._switchedFog = false;
+                }
+            }
         }
 
         builder.renderer.xr.addEventListener('sessionstart', function(event) {
@@ -55,16 +107,35 @@ class WorldRules {
             });
         }
     }
-    setSkybox(cubeTexture, scale = 1) {
+    setSkybox(cubeTexture, scale = 1, time = 1) {
         const scope = this;
         if (scope.cubeSkybox == null) {
             scope.builder.loadGLTF('https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/models/cubeSkybox.glb', function onLoad(gltf) { //cube
                 scope.cubeSkybox = new CubeSkybox(gltf.scene, cubeTexture, scale);
-                console.log("loads skybox");
             })
         } else {
-            scope.cubeSkybox.changeSkybox(cubeTexture, scale);
+            scope.cubeSkybox.changeSkybox(cubeTexture, scale, time);
         }
+    }
+
+    setFog(color, density, time) {
+        if (time != null) {
+            const timeFraction = 1 / time;
+            this._diferentialFog = {
+                color: new THREE.Color((color.r - this._fog.color.r) * timeFraction, (color.g - this._fog.color.g) * timeFraction, (color.b - this._fog.color.b) * timeFraction),
+                density: (density - this._fog.density) * timeFraction
+            }
+            this._targetFog = {
+                color: new THREE.Color(color.r, color.g, color.b),
+                density: density
+            }
+            this._fogTimer = time;
+            this._switchedFog = true;
+        } else {
+            this._fog.color = color;
+            this._fog.density = density;
+        }
+
     }
 
     setPositionWitObject(obj) {
@@ -75,6 +146,27 @@ class WorldRules {
         }
     }
 
+    setLimits(xmin, xmax, ymin, ymax, zmin, zmax) {
+        if (this.pcuser != null)
+            if (this.pcuser.setLimits != null)
+                this.pcuser.setLimits(xmin, xmax, ymin, ymax, zmin, zmax);
+    }
+
+    getUserPosition() {
+        if (this.onxr === true) {
+            return this.vruser.getPosition();
+        } else {
+            return this.pcuser.getPosition()
+        }
+
+        //check if its currently 
+    }
+
+    // onUserFirstInteract() {
+    //     //console.log("hello from world");
+    //     //call first time function
+    // }
+
 
 }
 
@@ -83,6 +175,7 @@ class CubeSkybox {
         this.customUniformsCubemap = [];
         this.scale = scale === undefined ? 1 : scale;
         this.skyboxObject = object;
+        this._timeToChange = 1;
         object.scale.set(-scale, scale, scale);
 
         // CREATE NECESSARY SHADERS
@@ -176,7 +269,7 @@ class CubeSkybox {
         if (this.customUniformsCubemap[0].colorInterpolation.value < 1) {
             clockDelta = clockDelta > 0.01 ? 0.01 : clockDelta;
             for (var i = 0; i < 6; i++) {
-                this.customUniformsCubemap[i].colorInterpolation.value += clockDelta;
+                this.customUniformsCubemap[i].colorInterpolation.value += clockDelta * this._timeToChange;
             }
             if (this.customUniformsCubemap[0].colorInterpolation.value >= 1) {
                 for (var i = 0; i < 6; i++) {
@@ -186,7 +279,8 @@ class CubeSkybox {
             }
         }
     }
-    changeSkybox(cubeTexture, scale) {
+    changeSkybox(cubeTexture, scale, time = 1) {
+        this._timeToChange = 1 / time;
         const scope = this;
         if (this.scale < scale) {
             this.scale = scale;
@@ -204,6 +298,9 @@ class CubeSkybox {
 
         Promise.all(textures).then(function(cubeTextures) {
             for (var i = 0; i < 6; i++) {
+                if (scope.customUniformsCubemap[i].colorInterpolation.value != 1) {
+                    scope.customUniformsCubemap[i].mainTexture.value = scope.customUniformsCubemap[i].backTexture.value;
+                }
                 scope.customUniformsCubemap[i].colorInterpolation.value = 0;
                 scope.customUniformsCubemap[i].backTexture.value = cubeTextures[i];
             }

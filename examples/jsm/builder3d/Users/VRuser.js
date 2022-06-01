@@ -189,6 +189,9 @@ class VRuser {
     moveToPosition(position) {
         this.user.position.set(position.x, position.y, position.z);
     }
+    getPosition() {
+        return this.user.position;
+    }
 
 }
 

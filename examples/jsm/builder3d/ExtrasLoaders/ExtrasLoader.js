@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { Reflector } from '../../objects/Reflector.js';
-import { BatchCombine } from '../../builder3dUtilities/BatchCombine.js';
-import { MeshUtilities } from '../../builder3dUtilities/MeshUtilities.js';
-import { ConvertMaterials } from '../../builder3dUtilities/ConvertMaterials.js';
+import { BatchCombine } from '../Utilities/BatchCombine.js';
+import { MeshUtilities } from '../Utilities/MeshUtilities.js';
+import { ConvertMaterials } from '../Utilities/ConvertMaterials.js';
 import ThreeMeshUI from '../../three-mesh-ui/three-mesh-ui.js'
+import { AmbientMeshBasicMaterial } from '../Materials/Materials.js'
+import { MeshStandardMaterial } from '../../../../build/three.module.js';
 
 class ExtrasLoader {
     constructor(builder, rules) {
@@ -21,18 +23,6 @@ class ExtrasLoader {
         if (gltf.asset.generator == "ola k ase") {
 
             customData = customData === undefined ? {} : customData;
-
-            if (gltf.userData.smartObject !== undefined) {
-
-                if (gltf.userData.smartObject.smartType !== undefined) {
-                    if (gltf.userData.smartObject.smartType === "space") {
-                        customData.affectSceneEnvironment = customData.affectSceneEnvironment === undefined ? true : customData.affectSceneEnvironment;
-                        customData.addMeshBackground = customData.addMeshBackground === undefined ? true : customData.addMeshBackground;
-                    }
-                    if (gltf.userData.smartObject.smartType === "object") {}
-                    if (gltf.userData.smartObject.smartType === "character") {}
-                }
-            }
 
             const affectSceneEnvironment = customData.affectSceneEnvironment === undefined ? false : customData.affectSceneEnvironment;
             const addMeshBackground = customData.addMeshBackground === undefined ? false : customData.addMeshBackground;
@@ -83,7 +73,6 @@ class ExtrasLoader {
             if (model.userData.background !== undefined) {
                 if (model.userData.background.cubeTexture !== undefined) {
                     let backgroundMap = gltf.cubeTextures[model.userData.background.cubeTexture.index];
-                    console.log(backgroundMap);
                     // -ON SCENE
                     if (affectSceneEnvironment) {
                         scope.scene.background = backgroundMap;
@@ -91,7 +80,6 @@ class ExtrasLoader {
                         scope.scene.background.encoding = THREE.sRGBEncoding;
                     }
                     if (addMeshBackground) {
-                        console.log("add it");
                         const scale = model.userData.background.cubeTexture.scale === undefined ? 1 : model.userData.background.cubeTexture.scale;
                         scope.rules.setSkybox(backgroundMap, scale);
                     }
@@ -114,8 +102,6 @@ class ExtrasLoader {
                     extras.navMesh.material = new THREE.MeshBasicMaterial();
                 }
             }
-
-
 
             // ASSIGN MESH AND GROUP CONNECTIONS CONNECTIONS TO NODES
 
@@ -203,14 +189,6 @@ class ExtrasLoader {
             });
             gltf.materials = origMats;
 
-            //SETUP MATERIAL ENVIRONMENT
-            gltf.materials.forEach((m) => {
-                if (m.constructor.name == "MeshStandardMaterial") {
-                    if (m.envMap === null)
-                        m.envMap = extras.environmentMap;
-                }
-            });
-
             //SECONDARY SETUP
             let basicMirrorMaterial = null;
             let stdMirrorMaterial = null;
@@ -220,18 +198,6 @@ class ExtrasLoader {
                     console.log(o.matrixWorld);
                     const m1 = new THREE.Matrix4();
                     const m = new THREE.Matrix4();
-
-                    // m1.set(1.06061570253976, -2.2052290772928, 3.86445625906416, 1,
-                    //     1.6940493973175998, 1.5084786692412, 2.2476388531374, 2,
-                    //     0.07274103286528, -2.9768201730924, 4.00176201671652, -3,
-                    //     0, 0, 0, 1);
-                    //console.log(m1);
-                    // m.fromArray([1.06061570253976, -2.2052290772928, -3.86445625906416, 1,
-                    //         1.6940493973175998, 1.5084786692412, 2.2476388531374, 2,
-                    //         0.07274103286528, -2.9768201730924, 4.00176201671652, -3,
-                    //         0, 0, 0, 1
-                    //     ])
-                    //console.log(m);
                 }
                 //SET IMPORTANT MATERIALS
                 if (o.userData.keepMat) {
@@ -315,10 +281,12 @@ class ExtrasLoader {
                 }
             }
 
+
+
             //CONVERT MATERIALS
             let changeAll = scope.quality == 0 ? true : false;
             if (scope.quality < 2)
-                ConvertMaterials.convertMaterialsToType(gltf, THREE.MeshBasicMaterial, changeAll);
+                ConvertMaterials.convertMaterialsToType(gltf, AmbientMeshBasicMaterial, changeAll);
 
 
 
@@ -327,6 +295,12 @@ class ExtrasLoader {
             if (mergeMeshes) {
                 extras.batchGeom = new BatchCombine(gltf, startMerged);
             }
+
+            //SETUP MATERIAL ENVIRONMENT
+            gltf.materials.forEach((m) => {
+                if (m.envMap === null)
+                    m.envMap = extras.environmentMap;
+            });
 
             //CLOSE
             pmGen.dispose();
@@ -337,57 +311,7 @@ class ExtrasLoader {
             // OFFSET SECONDARY UVS
 
             // COMBINED BUFFER GEOMETRY
-            function setSubmeshGroups(tarMesh) {
-                //let data = tarMesh.userData.submeshes;
-                //let mats = [];
-                //console.log(tarMesh.material);
-                //console.log(tarMesh.material[0]);
 
-                //let simpleMat = tarMesh.material[0].clone();
-
-                //console.log(simpleMat);
-                // console.log("here");
-                // console.log(tarMesh);
-
-                // const materials = tarMesh.material;
-                // let newMaterials = [];
-                // let addMaterials = [];
-
-                // for (let i =0; i < materials.length;i++){
-                //     let newMat = true;
-                //     for (let j =0; j < newMaterials.length;j++){
-                //         if (newMaterials[j] === addMaterials[j]){
-                //             addMaterials.push(newMaterials[j])
-                //             newMat = false;
-                //         }
-                //     }
-
-                //     if (newMat){
-
-                //         const mat = materials[i].clone();
-                //         console.log(mat);
-                //         newMaterials.push(mat);
-                //         addMaterials.push(mat);
-                //     }      
-                // }
-                // console.log(addMaterials);
-                //tarMesh.material = addMaterials;
-
-
-                //tarMesh.geometry.groups = [];
-                //tarMesh.material = simpleMat; 
-
-                //console.log(tarMesh.geometry);
-                //console.log(tarMesh);
-
-                //for (var i = 0; i < data.length; i++) {
-                //mats[i] = (gltf.materials[data[i].material].clone());
-                //mats[i].envMap = extras.environmentMap;
-                //console.log( mats[i].envMap);
-                //tarMesh.geometry.addGroup(data[i].start, data[i].count, i);
-                //}
-                //tarMesh.material = mats;
-            }
 
             extras.dispose = function() {
                 this.navMesh = null;
@@ -412,7 +336,6 @@ class ExtrasLoader {
             return extras;
         } else {
             gltf.materials.forEach(m => {
-
                 console.log(m);
                 m.lightMap = this.whiteLightmap;
             });

@@ -5,26 +5,34 @@ class SmartObject {
         if (!customData) customData = {};
 
         this.gltf = gltf;
+        this.rules = builder.rules;
         this.mainScene = builder.scene;
         this.hiddenScene = builder.hiddenScene; // used to remove objects from scene temporarily
         this.components = []; // all registered components
         this.model = gltf.scene;
-        this.isActive = true;
-        this.setupVars();
+        this.setupVars(gltf, customData, builder, onLoad);
 
-        //this.testMixer = new THREE.AnimationMixer(this.model);
+        this.builder = builder;
+
         this.animationControllers = gltf.animationControllers == null ? [] : gltf.animationControllers;
-        this.testing();
+        this.testing(gltf, customData, builder, onLoad);
+
+        onLoad(this);
+        this.onLoad();
+
+
+        // ALL OF THIS IS PART OF THE SETUP!!, LET THE USER ALSO DECIDE IF THEY WANT TO INITIALIZE IT ON LOADED.
+        this.isActive = false;
+        setSmartBaseData();
+
 
         // try not using traverse, instead use gltf.nodes.foreach. reason: When turning off objects, to avoid raycast colision, objects are being removed from main scene into a "hidden scene", since their parent gets removed, they wont be affected by traverse
         this.gltf.nodes.forEach(o => {
             o.layers.enable(30); //30 used for raycast, objects that need to be ignored by raycast will be removed from this layer
         });
-
-        this.beforeExtras();
+        this.beforeExtras(gltf, customData, builder, onLoad);
         this.extras = builder.rules.extrasLoader.loadData(this, customData);
-        this.afterExtras();
-
+        this.afterExtras(gltf, customData, builder, onLoad);
         if (gltf.cameras !== undefined) { //user must defines if remove or not
             for (let i = 0; i < gltf.cameras.length; i++) {
                 builder.scene.remove(gltf.cameras[i]);
@@ -34,21 +42,22 @@ class SmartObject {
 
         this.gltf.nodes.forEach(o => {
             if (o.userData.visible !== undefined) {
-                if (o.userData.visible === false)
+                if (o.userData.visible === false) {
                     scope.toggleObject(o, false); //used instead of .visible to avoid interaction with the object (raycasts)
+                }
             }
         });
-        onLoad(this);
+        if (builder._userInteracted === true) this._onUserFirstInteract();
 
-
-
-        if (customData.moveToStartPosition !== undefined) {
-            moveToPosition();
-        }
+        if (customData.moveToStartPosition !== undefined) moveUserToPosition();
 
         this.setData(customData);
+        this.addToScene(builder.scene)
 
-        function moveToPosition() {
+
+        this.onFinishSetup();
+
+        function moveUserToPosition() {
             if (gltf.userData.smartObject !== undefined) {
                 if (gltf.userData.smartObject.startPosition !== undefined) {
                     let obj = null;
@@ -68,15 +77,29 @@ class SmartObject {
                 }
             }
         }
+
+        function setSmartBaseData() {
+            if (gltf.userData.smartObject !== undefined) {
+                if (gltf.userData.smartObject.smartType !== undefined) {
+                    if (gltf.userData.smartObject.smartType === "space") {
+                        customData.affectSceneEnvironment = customData.affectSceneEnvironment === undefined ? true : customData.affectSceneEnvironment;
+                        customData.addMeshBackground = customData.addMeshBackground === undefined ? true : customData.addMeshBackground;
+                    }
+                    if (gltf.userData.smartObject.smartType === "object") {}
+                    if (gltf.userData.smartObject.smartType === "character") {}
+                }
+            }
+        }
+
     }
     testing() {
-
 
         if (this.gltf.animationControllers != null) {
             //console.log(this.gltf.animationControllers);
         }
 
     }
+
     testingSetWeight(action, weight) {
 
         action.enabled = true;
@@ -85,6 +108,23 @@ class SmartObject {
 
     }
 
+    _onUserFirstInteract() {
+        // play audio
+        this.gltf.scene.traverse((o) => {
+            if (o.constructor.name === "PositionalAudio" || o.constructor.name === "Audio") {
+                if (o.autoplay === true) {
+                    o.play();
+                }
+            }
+        });
+    }
+
+    addToScene(scene) {
+        scene.add(this.model);
+        this.isActive = true;
+    }
+    onLoad() { /*override*/ }
+    onFinishSetup() { /*override*/ }
     setupVars() { /*override*/ } // called  after setting smartObjects initial vars
     beforeExtras() { /*override*/ }
     afterExtras() { /*override*/ }
@@ -113,12 +153,17 @@ class SmartObject {
     toggleObject(target, active) {
         if (target != null) {
             if (active === true) {
+                console.log(target.userData);
                 if (target.userData.currentParent != null) {
                     target.userData.currentParent.add(target);
                     // call on enable
+                } else {
+                    //no parent found, add it to the main scene
+                    this.mainScene.add(target);
                 }
             } else if (active === false) {
-                target.userData.currentParent = target.parent;
+                const parent = target.parent == null ? this.mainScene : target.parent;
+                target.userData.currentParent = parent;
                 this.hiddenScene.add(target);
                 // cal on disable
             } else {
@@ -136,15 +181,17 @@ class SmartObject {
         if (active === true) {
             if (this.isActive === false) {
                 this.isActive = true;
-                this.model.userData.currentParent.add(this.model);
+                this.toggleObject(this.model, true);
                 this.onSmartEnable();
+                //this.model.userData.currentParent.add(this.model);
             }
         } else if (active === false) {
             if (this.isActive === true) {
                 this.isActive = false;
+                this.toggleObject(this.model, false);
                 this.onSmartDisable();
-                this.model.userData.currentParent = this.model.parent;
-                this.hiddenScene.add(this.model);
+                //this.model.userData.currentParent = this.model.parent;
+                //this.hiddenScene.add(this.model);
             }
         } else {
             if (this.isActive) {
@@ -166,7 +213,7 @@ class SmartObject {
     }
     tick(clockDelta) {
         if (this.isActive) {
-            this.animMixer
+            //this.animMixer
             this.components.forEach(function(comp) {
                 comp.tick(clockDelta);
             });
@@ -205,6 +252,17 @@ class SmartObject {
             }
         });
         return result;
+    }
+
+    moveToUserPosition() {
+        const pos = this.rules.getUserPosition();
+        this.model.position.set(pos.x, pos.y, pos.z);
+    }
+    setSkybox(cubeTexture, skyboxScale, changeTime) {
+        this.rules.setSkybox(cubeTexture, skyboxScale, changeTime);
+    }
+    setFog(color, demsity, time) {
+        this.rules.setFog(color, demsity, time);
     }
 
     dispose() {

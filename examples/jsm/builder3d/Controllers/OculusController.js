@@ -59,9 +59,13 @@ class OculusController extends THREE.EventDispatcher {
             scope.pointer = new OculusHandPointerModel(scope.hand, scope.controller);
             scope.hand.add(scope.pointer);
 
-            builder.loadSmart("https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/models/rayTube/gltf.gltf", {}, function(smart) {
-                scope.controller.add(smart.model);
-                scope.rayTube = smart.model;
+            // builder.loadSmart("https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/models/rayTube/gltf.gltf", {}, function(smart) {
+            //     scope.controller.add(smart.model);
+            //     scope.rayTube = smart.model;
+            // }, false);
+            builder.loadGLTF("https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/models/rayTube/gltf.gltf", function(gltf) {
+                scope.controller.add(gltf.scene);
+                scope.rayTube = gltf.scene;
             }, false);
 
             parent.add(scope.controller);

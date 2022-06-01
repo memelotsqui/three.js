@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from '../../controls/OrbitControlsClickMove.js';
+import { FirstPersonController } from './FirstPersonController.js'; //use dynamic load?
 import '../../libs/hammer.min.js';
 class PCuser {
     constructor(builder, rules) {
@@ -22,7 +23,8 @@ class PCuser {
             scope.raycaster = raycaster;
         }
 
-        setupOrbitControls();
+        setupFirstPersonControls();
+        //setupOrbitControls();
         touchHammer = new Hammer(builder.container);
         touchHammer.on('tap', hammerTap);
         mouse = new THREE.Vector2();
@@ -160,13 +162,17 @@ class PCuser {
             controls.maxPolarAngle = 1.5708;
 
             scope.controls = controls;
-            controls.update();
+            //controls.update();
+        }
+
+        function setupFirstPersonControls() {
+            let controls = new FirstPersonController(builder.camera, builder.container, 1.7);
+            scope.controls = controls;
         }
     }
     tick(clockDelta) {
-
         if (this.controls !== null) {
-            this.controls.update();
+            this.controls.update(clockDelta);
         }
     }
     setPositionWitObject(obj) {
@@ -175,7 +181,24 @@ class PCuser {
         this.moveToPosition(v3);
     }
     moveToPosition(position) {
-        this.controls.target.set(position.x, position.y, position.z);
+        if (this.controls !== null) {
+            if (this.controls.target != null)
+                this.controls.target.set(position.x, position.y, position.z);
+            if (this.controls.setPosition != null)
+                this.controls.setPosition(position);
+        }
+    }
+    getPosition() {
+        if (this.controls !== null)
+            if (this.controls.getPosition != null)
+                return this.controls.getPosition();
+        return new THREE.Vector3(0, 0, 0)
+    }
+    setLimits(xmin, xmax, ymin, ymax, zmin, zmax) {
+        if (this.controls != null) {
+            if (this.controls.setLimits != null)
+                this.controls.setLimits(xmin, xmax, ymin, ymax, zmin, zmax);
+        }
     }
 
 }
