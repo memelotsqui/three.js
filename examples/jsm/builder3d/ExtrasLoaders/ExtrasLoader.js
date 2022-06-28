@@ -5,7 +5,6 @@ import { MeshUtilities } from '../Utilities/MeshUtilities.js';
 import { ConvertMaterials } from '../Utilities/ConvertMaterials.js';
 import ThreeMeshUI from '../../three-mesh-ui/three-mesh-ui.js'
 import { AmbientMeshBasicMaterial } from '../Materials/Materials.js'
-import { MeshStandardMaterial } from '../../../../build/three.module.js';
 
 class ExtrasLoader {
     constructor(builder, rules) {
@@ -80,8 +79,8 @@ class ExtrasLoader {
                         scope.scene.background.encoding = THREE.sRGBEncoding;
                     }
                     if (addMeshBackground) {
-                        const scale = model.userData.background.cubeTexture.scale === undefined ? 1 : model.userData.background.cubeTexture.scale;
-                        scope.rules.setSkybox(backgroundMap, scale);
+                        const scale = model.userData.background.cubeTexture.scale || 1;
+                        scope.rules.setSkybox(backgroundMap, 1, { scale: scale });
                     }
 
                 }
@@ -229,7 +228,10 @@ class ExtrasLoader {
                     if (basicMirrorMaterial == null) {
                         //MIRROR MATERIALS
                         basicMirrorMaterial = new THREE.MeshBasicMaterial({
-                            color: 0x3d3d3d
+                            color: 0x3d3d3d,
+                            envMap: scope.environmentMap,
+                            combine: THREE.MixOperation,
+                            reflectivity: 1
                         });
                         stdMirrorMaterial = new THREE.MeshStandardMaterial({
                             metalness: 1.0,
@@ -238,6 +240,7 @@ class ExtrasLoader {
                             envMap: scope.environmentMap
                         });
                     }
+
 
                     let mirrorMat = stdMirrorMaterial;
                     if (o.userData.mirror.envMap !== undefined) {
@@ -250,9 +253,16 @@ class ExtrasLoader {
                         mirrorMat.envMap = reflection;
                         mirrorMat.needsUpdate = true;
 
+                        basicMirrorMaterial.envMap = reflection;
+                        basicMirrorMaterial.needsUpdate = true;
+
                     }
 
+                    console.log(basicMirrorMaterial);
+                    console.log(stdMirrorMaterial);
+
                     if (o.userData.mesh !== undefined) {
+
                         extras.mirrors.push(new Mirror(o, mirrorMat, basicMirrorMaterial, scope.quality));
                     } else {
                         console.log("No mesh for mirror found in object: " + o.name + " skipping mirror creation");
@@ -418,7 +428,7 @@ class Mirror {
         this.stdMaterial = stdMaterial;
         this.basicMaterial = basicMaterial;
 
-        // preadd material to avoid mesh batching
+        // pre add material to avoid mesh batching
         setMaterial(stdMaterial);
 
         //create reflector with existing geometry
@@ -447,7 +457,9 @@ class Mirror {
 
 
         this.displayMirrorQuality = function(quality) {
+            console.log(quality);
             if (quality == 0) {
+                console.log(basicMaterial);
                 setMaterial(basicMaterial);
                 scope.baseMesh.visible = true;
                 scope.reflector.visible = false;

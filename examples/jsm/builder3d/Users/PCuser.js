@@ -1,86 +1,88 @@
 import * as THREE from 'three';
 import { OrbitControls } from '../../controls/OrbitControlsClickMove.js';
 import { FirstPersonController } from './FirstPersonController.js'; //use dynamic load?
-import '../../libs/hammer.min.js';
+//import '../../libs/hammer.min.js';
 class PCuser {
-    constructor(builder, rules) {
+    constructor(builder, controller, rules) {
         const scope = this;
 
         this.rules = rules;
         this.controls = null;
 
-        let mouse, touchHammer;
+        //let mouse, touchHammer;
 
-        this.raycaster = null;
+        this.raycaster = new THREE.Raycaster();
+        this.raycaster.layers.set(30);
         this.lastHoverObject = null; //current raycast active smart object
+        this._mousePosition = { x: 0, y: 0 }
 
-        SetupRaycaster();
+        console.log(controller);
 
-        function SetupRaycaster() {
-            let raycaster = new THREE.Raycaster();
-            raycaster.layers.disableAll();
-            raycaster.layers.enable(30); //only objects in layer 30
-            scope.raycaster = raycaster;
-        }
 
         setupFirstPersonControls();
         //setupOrbitControls();
-        touchHammer = new Hammer(builder.container);
-        touchHammer.on('tap', hammerTap);
-        mouse = new THREE.Vector2();
 
 
+        controller.addEventListener('onFireClick', (e) => { simpleClickRay(true) });
+        controller.addEventListener('onGrabClick', (e) => { simpleClickRay(false) });
+        builder.container.addEventListener('mousemove', (e) => { onMouseMove(e) });
+        builder.container.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        function hammerTap(e) {
-            mouse = e.center;
-            normalizeMouse(mouse);
-            if (e.tapCount == 2) {
-                //console.log("tap2");
-                multiClickRay();
-            }
-            if (e.tapCount == 1) {
-                //console.log("tap1");
-                simpleClickRay();
-            }
-        }
-
-        document.onmousemove = handleMouseMove;
-
-        function handleMouseMove(event) {
-            var eventDoc, doc, body;
-            event = event || window.event; // IE-ism
-            if (event.pageX == null && event.clientX != null) {
-                eventDoc = (event.target && event.target.ownerDocument) || document;
-                doc = eventDoc.documentElement;
-                body = eventDoc.body;
-
-                event.pageX = event.clientX +
-                    (doc && doc.scrollLeft || body && body.scrollLeft || 0) -
-                    (doc && doc.clientLeft || body && body.clientLeft || 0);
-                event.pageY = event.clientY +
-                    (doc && doc.scrollTop || body && body.scrollTop || 0) -
-                    (doc && doc.clientTop || body && body.clientTop || 0);
-            }
-            mouse.x = event.pageX;
-            mouse.y = event.pageY;
-            normalizeMouse(mouse);
+        function onMouseMove(e) {
+            scope._mousePosition = normalizeVector2({
+                x: e.clientX,
+                y: e.clientY
+            })
             hoverRay();
-            // Use event.pageX / event.pageY here
         }
 
-        function normalizeMouse() {
-            mouse.x = ((mouse.x - builder.renderer.rect.left) / builder.renderer.rect.width) * 2 - 1;
-            mouse.y = -((mouse.y - builder.renderer.rect.top) / builder.renderer.rect.height) * 2 + 1;
-            return mouse;
+
+        function normalizeVector2(v2) {
+            return {
+                x: ((v2.x - builder.renderer.rect.left) / builder.renderer.rect.width) * 2 - 1,
+                y: -((v2.y - builder.renderer.rect.top) / builder.renderer.rect.height) * 2 + 1
+            }
         }
 
-        function simpleClickRay() {
+
+
+
+
+
+
+
+
+
+        function simpleClickRay(main) {
             // cast a single ray
             const rayHits = castRay(builder.scene.children);
             if (rayHits.length > 0) {
-                onRaycastHit(rayHits[0].object.userData.gameObject, rayHits);
+                onRaycastHit(rayHits[0].object.userData.gameObject, rayHits, main);
             }
         }
+
+        function castRay(_interactable) {
+            scope.raycaster.setFromCamera(scope._mousePosition, builder.camera);
+            return scope.raycaster.intersectObjects(_interactable, true);
+        }
+
+        function onRaycastHit(object, intersectObjects, main) {
+            if (object !== undefined) {
+                if (object.userData.components !== undefined) {
+                    object.userData.components.forEach((c) => {
+                        if (main === true) {
+                            c.onRaycastHit({ intersectObjects: intersectObjects });
+                            c.onClick(intersectObjects);
+                        } else {
+                            c.onSecondaryClick(intersectObjects);
+                        }
+                    });
+                }
+            }
+        }
+
+
+
 
 
 
@@ -92,25 +94,10 @@ class PCuser {
                 if (scope.lastHoverObject !== null) {
                     if (scope.lastHoverObject.userData.components !== undefined) {
                         scope.lastHoverObject.userData.components.forEach((c) => {
-                            c.onHoverExit();
+                            c.onHoverExit([]);
                         });
                     }
                     scope.lastHoverObject = null;
-                }
-            }
-        }
-
-        function castRay(_interactable) {
-            scope.raycaster.setFromCamera(mouse, builder.camera);
-            return scope.raycaster.intersectObjects(_interactable, true);
-        }
-
-        function onRaycastHit(object, intersectObjects) {
-            if (object !== undefined) {
-                if (object.userData.components !== undefined) {
-                    object.userData.components.forEach((c) => {
-                        c.onRaycastHit({ intersectObjects: intersectObjects });
-                    });
                 }
             }
         }
@@ -124,6 +111,7 @@ class PCuser {
                     if (object.userData.components !== undefined) {
                         object.userData.components.forEach((c) => {
                             c.onHoverEnter({ intersectObjects: intersectObjects });
+                            c.onHoverIn(intersectObjects);
                         });
                     }
                 }
@@ -133,6 +121,7 @@ class PCuser {
                     if (scope.lastHoverObject.userData.components !== undefined) {
                         scope.lastHoverObject.userData.components.forEach((c) => {
                             c.onHoverExit({ intersectObjects: intersectObjects });
+                            c.onHoverOut(intersectObjects);
                         });
                     }
                 }
@@ -140,9 +129,9 @@ class PCuser {
             }
         }
 
-        function multiClickRay() {
-            //console.log("click 2");
-        }
+
+
+
 
         this.onControlsChange = function(onfps) {
             //console.log(onfps);
@@ -166,7 +155,7 @@ class PCuser {
         }
 
         function setupFirstPersonControls() {
-            let controls = new FirstPersonController(builder.camera, builder.container, 1.7);
+            let controls = new FirstPersonController(builder.camera, builder.container, builder.scene, 1.65);
             scope.controls = controls;
         }
     }

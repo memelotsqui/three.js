@@ -122,19 +122,25 @@ class PCInputController {
 }
 
 class FirstPersonController {
-    constructor(camera, container, userHeight, moveSpeed) {
+    constructor(camera, container, scene, userHeight, moveSpeed) {
+        const scope = this;
 
         this._camera = camera;
+        this._scene = scene;
         this._container = container;
-        this._input = new PCInputController(container);
-        this.userHeight = userHeight != null ? userHeight : 0;
+        this._input = new PCInputController(container); //pending, it may be outside, in controller class
+        this._userHeight = userHeight != null ? userHeight : 1.65;
+        this._gravity = 9.81;
+
+        this._userStepHeight = 0.5;
+        this._minStepDistance = 1.65 - this._userStepHeight; //1.15;
 
         this._rotation = new THREE.Quaternion();
-        this._position = new THREE.Vector3();
+        this._position = new THREE.Vector3(0, this._userHeight, 0);
         this._phi = 0;
         this._theta = 0;
 
-        this._moveSpeed = moveSpeed == null ? 0.5 : moveSpeed;
+        this._moveSpeed = moveSpeed == null ? 0.25 : moveSpeed;
 
         this._limits = {
             xmin: null,
@@ -145,7 +151,30 @@ class FirstPersonController {
             zmax: null
         };
         this._limitsSet = false;
+        this._down = new THREE.Vector3(0, -1, 0)
+
+        this._raycaster = null;
+        this._fwdRaycaster = null;
+
+        SetupRaycasters();
+
+        function SetupRaycasters() {
+            let raycaster = new THREE.Raycaster();
+            raycaster.layers.disableAll();
+            raycaster.layers.enable(30); //only objects in layer 30
+
+            //console.log(raycaster)
+            scope._raycaster = raycaster;
+
+            raycaster = new THREE.Raycaster();
+            raycaster.layers.disableAll();
+            raycaster.layers.enable(30);
+            raycaster.far = 0.5;
+
+            scope._fwdRaycaster = raycaster;
+        }
     }
+
     update(clockDelta) {
         this._updateRotation(clockDelta);
         this._updateTranslation(clockDelta);
@@ -153,7 +182,7 @@ class FirstPersonController {
         this._input.update(clockDelta);
     }
     setPosition(position) {
-        this._position.set(position.x, position.y + this.userHeight, position.z);
+        this._position.set(position.x, position.y + this._userHeight, position.z);
     }
     getPosition() {
         return this._position;
@@ -187,6 +216,7 @@ class FirstPersonController {
 
         const forward = new THREE.Vector3(0, 0, -1);
         forward.applyQuaternion(qx);
+        //console.log(forward);
         forward.multiplyScalar(forwardVelocity * clockDelta * 10);
 
         const side = new THREE.Vector3(-1, 0, 0);
@@ -196,13 +226,86 @@ class FirstPersonController {
 
         this._position.add(forward);
         this._position.add(side);
-        this._position.y = this.userHeight;
+
+        if (forwardVelocity != 0) {
+            if (this._checkCollisionWithDirection(this._position, forward)) {
+                this._position.sub(forward);
+            }
+        }
+        if (sideVelocity != 0) {
+            if (this._checkCollisionWithDirection(this._position, side)) {
+                this._position.sub(side);
+            }
+        }
+
+
+        const hit = this._checkFloorColision(this._position)
+        if (hit != null) {
+            if (hit.distance < this._userHeight - 0.001) {
+                if (hit.distance > this._minStepDistance) {
+                    //this._position.y = this._userHeight + hit.point.y;
+                    this._position.y += (this._userHeight - hit.distance) * clockDelta * 10;
+                    if (this._position.y + 0.005 > (this._userHeight + hit.point.y)) {
+                        this._position.y = this._userHeight + hit.point.y;
+                    }
+                } else {
+                    this._position.sub(forward);
+                    this._position.sub(side);
+                }
+            } else {
+                if (hit.distance > this._userHeight + 0.01) {
+                    let sub = clockDelta * this._gravity;
+                    const dif = hit.distance - this._userHeight;
+                    if (sub > dif)
+                        sub = dif;
+
+                    this._position.y -= sub;
+                }
+
+            }
+            //console.log(hit);
+        }
+
 
         if (this._limitsSet) {
             this._checkForLimits();
         }
+        //console.log(this._checkFloorColision(this._position));
+
     }
+
+    _checkCollisionWithDirection(position, direction) {
+        this._fwdRaycaster.set(position, direction);
+        if (this._fwdRaycaster.intersectObjects(this._scene.children, true)[0] != null)
+            return true;
+        // this._fwdRaycaster.set(new THREE.Vector3(position.x, position.y - this._minStepDistance, position.z), direction)
+        // if (this._fwdRaycaster.intersectObjects(this._scene.children, true)[0] != null) {
+        //     console.log("collided");
+        //     return true;
+        // }
+        return false;
+    }
+
+    _checkFloorColision(position) {
+        this._raycaster.set(position, this._down);
+        //const hits = this._raycaster.intersectObjects(this._scene.children, true);
+        const hit = this._raycaster.intersectObjects(this._scene.children, true)[0];
+        return hit
+        if (hit != null) {
+            return hit
+            const tarObj = hit.object.userData.gameObject;
+            if (tarObj != null) {
+                if (tarObj.userData.teleport != null)
+                    return hit
+            }
+        }
+        return null;
+    }
+
     _checkForLimits() {
+
+        //this._raycaster.set(this._camera, );
+        //this._raycaster.intersectObjects(_interactable, true);
         if (this._limits.xmin != null)
             if (this._position.x < this._limits.xmin)
                 this._position.x = this._limits.xmin;

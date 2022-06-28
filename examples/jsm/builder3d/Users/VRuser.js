@@ -7,7 +7,7 @@ import { OculusController } from '../Controllers/OculusController.js'
 import ThreeMeshUI from '../../three-mesh-ui/three-mesh-ui.js'
 
 class VRuser {
-    constructor(builder, rules) {
+    constructor(builder, controller, rules) {
 
         const scope = this;
         const camera = builder.camera;

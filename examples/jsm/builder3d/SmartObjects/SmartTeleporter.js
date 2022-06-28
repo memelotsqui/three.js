@@ -18,6 +18,7 @@ class SmartTeleporter extends SmartObject {
     beforeExtras() {
 
     }
+
     afterExtras() {
         this.gltf.materials.forEach(mat => {
             mat.fog = false;
@@ -27,6 +28,7 @@ class SmartTeleporter extends SmartObject {
     setSmartObjectData(customData) {
 
     }
+
     smartTick(clockDelta) {
         if (this._inUse === true) {
             if (this._teleporting === true) {
@@ -69,8 +71,8 @@ class SmartTeleporter extends SmartObject {
 
         this.moveToUserPosition();
         this.setFog({ r: 1, g: 1, b: 1 }, 10, 5);
-        const scale = this.model.userData.background.cubeTexture.scale === undefined ? 1 : this.model.model.userData.background.cubeTexture.scale;
-        this.setSkybox(this.gltf.cubeTextures[this.model.userData.environment], scale, 0.2);
+        const scale = this.model.userData.background.cubeTexture.scale || 1;
+        this.setSkybox(this.gltf.cubeTextures[this.model.userData.environment], 0.2, { scale: scale });
 
     }
     endTeleport() {

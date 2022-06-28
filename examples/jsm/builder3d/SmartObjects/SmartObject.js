@@ -1,18 +1,27 @@
+import { Vector3, Quaternion, BoxGeometry, MeshBasicMaterial, Mesh } from 'three';
+
 class SmartObject {
     constructor(gltf, customData, builder, onLoad) {
-        //this.builder = builder;
+
         const scope = this;
+
+
         if (!customData) customData = {};
 
+        this.CONTROLLER;
+
+        this.builder = builder;
         this.gltf = gltf;
         this.rules = builder.rules;
         this.mainScene = builder.scene;
+        this.debug = builder.debug;
         this.hiddenScene = builder.hiddenScene; // used to remove objects from scene temporarily
         this.components = []; // all registered components
         this.model = gltf.scene;
-        this.setupVars(gltf, customData, builder, onLoad);
 
-        this.builder = builder;
+        this.loadGLTFColliders(builder.rules.physicsEngine);
+
+        this.setupVars(gltf, customData, builder, onLoad);
 
         this.animationControllers = gltf.animationControllers == null ? [] : gltf.animationControllers;
         this.testing(gltf, customData, builder, onLoad);
@@ -26,10 +35,13 @@ class SmartObject {
         setSmartBaseData();
 
 
-        // try not using traverse, instead use gltf.nodes.foreach. reason: When turning off objects, to avoid raycast colision, objects are being removed from main scene into a "hidden scene", since their parent gets removed, they wont be affected by traverse
-        this.gltf.nodes.forEach(o => {
-            o.layers.enable(30); //30 used for raycast, objects that need to be ignored by raycast will be removed from this layer
-        });
+        const collisions = customData.collisions || true;
+        if (collisions === true) {
+            // try not using traverse, instead use gltf.nodes.foreach. reason: When turning off objects, to avoid raycast colision, objects are being removed from main scene into a "hidden scene", since their parent gets removed, they wont be affected by traverse
+            this.gltf.nodes.forEach(o => {
+                o.layers.enable(30); //30 used for raycast, objects that need to be ignored by raycast will be removed from this layer
+            });
+        }
         this.beforeExtras(gltf, customData, builder, onLoad);
         this.extras = builder.rules.extrasLoader.loadData(this, customData);
         this.afterExtras(gltf, customData, builder, onLoad);
@@ -92,8 +104,24 @@ class SmartObject {
         }
 
     }
-    testing() {
+    moveUserToObject(object) {
+        this.builder.rules.setPositionWitObject(object);
+    }
 
+    loadGLTFColliders(engine) {
+        if (this.gltf.nodes != null && engine != null) {
+            this.gltf.nodes.forEach(o => {
+                if (o.userData.gltfExtensions != null) {
+                    if (o.userData.gltfExtensions.OMI_collider != null) {
+                        //console.log(o);
+                        this.addComponent(new Collider(o, o.userData.gltfExtensions.OMI_collider, engine, this.debug, this.mainScene))
+                    }
+                }
+            });
+        }
+    }
+
+    testing() {
         if (this.gltf.animationControllers != null) {
             //console.log(this.gltf.animationControllers);
         }
@@ -107,6 +135,7 @@ class SmartObject {
         action.setEffectiveWeight(weight);
 
     }
+    receiveData(data) { /*override*/ }
 
     _onUserFirstInteract() {
         // play audio
@@ -125,7 +154,7 @@ class SmartObject {
     }
     onLoad() { /*override*/ }
     onFinishSetup() { /*override*/ }
-    setupVars() { /*override*/ } // called  after setting smartObjects initial vars
+    setupVars(gltf, customData, builder, onLoad) { /*override*/ } // called  after setting smartObjects initial vars
     beforeExtras() { /*override*/ }
     afterExtras() { /*override*/ }
 
@@ -139,21 +168,34 @@ class SmartObject {
         }
         return nodes;
     }
+
+
     setData(customData) {
         if (customData.parent != null) customData.parent.add(this.model);
         this.model.userData.currentParent = this.model.parent;
         if (customData.position !== undefined) this.model.position.set(customData.position.x, customData.position.y, customData.position.z);
+        if (customData.quaternion !== undefined) this.model.setRotationFromQuaternion(customData.quaternion);
         if (customData.scale !== undefined) this.model.scale.set(customData.scale.x, customData.scale.y, customData.scale.z);
         if (customData.visible !== undefined) this.model.visible = customData.visible; //turning off visibility, dont stop raycast from hitting objects, use setActive instead
         if (customData.setActive !== undefined) this.setActive(customData.setActive);
         this.setSmartObjectData(customData);
+    }
+    getCurrentData() {
+        const DATA = {};
+
+        DATA.parent = this.model.parent;
+        DATA.position = this.model.position;
+        DATA.scale = this.model.scale;
+        DATA.visible = this.model.visible;
+        DATA.setActive = this.isActive;
+
+        return DATA;
     }
 
 
     toggleObject(target, active) {
         if (target != null) {
             if (active === true) {
-                console.log(target.userData);
                 if (target.userData.currentParent != null) {
                     target.userData.currentParent.add(target);
                     // call on enable
@@ -203,11 +245,12 @@ class SmartObject {
     }
 
     onScreenResize(container) {
-        if (scope.gltf.cameras !== undefined) {
-            for (let i = 0; i < scope.gltf.cameras.length; i++) {
-                scope.gltf.cameras[i].aspect = container.clientWidth / container.clientHeight;
-                scope.gltf.cameras[i].updateProjectionMatrix();
-                scope.extras.callWindowResize();
+        if (this.gltf.cameras !== undefined) {
+            for (let i = 0; i < this.gltf.cameras.length; i++) {
+                this.gltf.cameras[i].aspect = container.clientWidth / container.clientHeight;
+                this.gltf.cameras[i].updateProjectionMatrix();
+                console.log(this.extras);
+                this.builder.rules.extrasLoader.callWindowResize(this.extras);
             }
         }
     }
@@ -235,18 +278,19 @@ class SmartObject {
         if (component !== undefined) //check component type?
             this.components.push(component);
     }
-    getComponent(componentType) {
+    getComponent(componentType, object) {
         let result = null;
-        this.components.some(function(comp) {
+        object.userData.components.some((comp) => {
             if (comp instanceof componentType) {
+                console.log("found!");
                 result = comp;
             }
         });
         return result;
     }
-    getComponents(componentType) {
+    getComponents(componentType, object) {
         let result = [];
-        this.components.forEach(function(comp) {
+        object.userData.components.forEach(function(comp) {
             if (comp instanceof componentType) {
                 result.push(comp);
             }
@@ -254,15 +298,16 @@ class SmartObject {
         return result;
     }
 
+
     moveToUserPosition() {
         const pos = this.rules.getUserPosition();
         this.model.position.set(pos.x, pos.y, pos.z);
     }
-    setSkybox(cubeTexture, skyboxScale, changeTime) {
-        this.rules.setSkybox(cubeTexture, skyboxScale, changeTime);
+    setSkybox(cubeTexture, changeTime, customData) {
+        this.rules.setSkybox(cubeTexture, changeTime, customData);
     }
-    setFog(color, demsity, time) {
-        this.rules.setFog(color, demsity, time);
+    setFog(color, demsity, time, customData) {
+        this.rules.setFog(color, demsity, time, customData);
     }
 
     dispose() {
@@ -281,9 +326,20 @@ class SmartObject {
         this.gltf.cubeTextures = null;
 
         this.model.traverse((o) => {
+            if (o.constructor.name === "PositionalAudio" || o.constructor.name === "Audio") {
+                if (o.source != null)
+                    o.stop();
+                o.source = null;
+                o = null;
+                //console.log(o.context);
+                //o.context.close();
+            }
+        });
+        this.model.traverse((o) => {
             if (o.geometry !== undefined) {
                 o.geometry.dispose();
                 delete o.geometry;
+
 
                 if (o.material.length !== undefined) {
                     o.material.forEach(m => {
@@ -359,6 +415,9 @@ class SmartObject {
         }
     }
 }
+
+
+
 class ObjectComponent {
     constructor(object) {
         if (object.userData.components === undefined)
@@ -375,7 +434,20 @@ class ObjectComponent {
         //hits
         //left hand, right hand
     }
-    onRaycastHitDoubleClick(customData) {
+    onClick(intersectObjects) {
+        console.log(intersectObjects);
+    }
+    onSecondaryClick(intersectObjects) {
+        console.log("secondary " + intersectObjects);
+    }
+
+    // onRaycastHitDoubleClick(customData) {
+
+    // }
+    onHoverIn(intersectObjects) {
+
+    }
+    onHoverOut(intersectObjects) {
 
     }
     onHoverEnter(customData) {
@@ -384,6 +456,108 @@ class ObjectComponent {
     onHoverExit(customData) {
 
     }
+}
+
+class Collider extends ObjectComponent {
+    constructor(object, data, engine, debug = false, debugScene = null) {
+        super(object);
+
+        this.rigidBody = engine.createRigidBody(object, data.rigidBody);
+        this.collider = engine.createCollider(object, this.rigidBody, data);
+
+        const center = data.center == null ? new Vector3(0, 0, 0) : new Vector3(data.center[0], data.center[1], data.center[2])
+            .multiply(object.scale);
+
+        this._offsetScale = new Vector3(1, 1, 1);
+        this._offsetPos = new Vector3(0, 0, 0);
+        this._offsetRot = new Vector3(0, 0, 0);
+
+        this._debugScene = debugScene;
+        this._debugObject = debug ? this._createDebugCollider(data, object) : null;
+
+        this._offsetDirection = new Vector3().subVectors(new Vector3(0, 0, 0), center).normalize();
+        this._offsetDistance = new Vector3().distanceTo(center);
+
+        this._updateOffset();
+        this._updatePosition();
+
+    }
+    _updateOffset() {
+        const globalPos = new Vector3();
+        const globalScale = new Vector3();
+
+        this.object.parent.getWorldPosition(globalPos); // Get it from parent, thats the actual data we want to offset
+        this.object.parent.getWorldScale(globalScale);
+
+        this._offsetScale = new Vector3(1 / globalScale.x, 1 / globalScale.y, 1 / globalScale.z);
+        this._offsetPos =
+            globalPos.multiply(this._offsetScale)
+            //.add(this._colliderCenter);
+    }
+    _updatePosition() {
+        if (this.collider != null) {
+            const pos = this.collider.translation();
+            const rot = this.collider.rotation();
+
+            this.object.position.set(
+                (pos.x * this._offsetScale.x) - this._offsetPos.x,
+                (pos.y * this._offsetScale.y) - this._offsetPos.y,
+                (pos.z * this._offsetScale.z) - this._offsetPos.z);
+            this.object.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+
+            //not sure if it hits impact
+            this.object.translateOnAxis(this._offsetDirection, this._offsetDistance);
+
+            if (this._debugObject != null) {
+
+                this._debugObject.position.set(pos.x, pos.y, pos.z);
+                this._debugObject.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+
+            }
+        }
+
+    }
+    tick(clockDelta) { //clock delta not to be used with position
+        if (this.rigidBody != null) {
+            if (!this.rigidBody.isSleeping())
+                this._updatePosition();
+        }
+    }
+    onRaycastHit(customData) {
+        if (this.rigidBody != null) {
+            const hitPoint = customData.intersectObjects[0].point;
+            this.rigidBody.applyImpulseAtPoint(new Vector3(-1, 1, 0), hitPoint, true);
+        }
+    }
+
+    _createDebugCollider(data, object) {
+        if (data.type === "box") {
+            const worldPos = new Vector3(0, 0, 0);
+            const worldScale = new Vector3(1, 1, 1);
+
+            object.getWorldPosition(worldPos);
+            object.getWorldScale(worldScale);
+
+            const center = new Vector3(data.center[0], data.center[1], data.center[2]);
+            center.multiply(worldScale)
+            worldPos.add(center)
+
+            const finalSize = new Vector3(worldScale.x * data.extents[0], worldScale.x * data.extents[1], worldScale.x * data.extents[2]);
+
+            return this._debugBox(finalSize, worldPos);
+        }
+        return null;
+    }
+
+    _debugBox(size, position) {
+        const geometry = new BoxGeometry(size.x, size.y, size.z);
+        const material = new MeshBasicMaterial({ color: 0xffde00, opacity: 0.5, transparent: true });
+        const cube = new Mesh(geometry, material);
+        this._debugScene.add(cube);
+        cube.position.set(position.x, position.y, position.z);
+        return cube;
+    }
+
 }
 
 export { SmartObject, ObjectComponent }

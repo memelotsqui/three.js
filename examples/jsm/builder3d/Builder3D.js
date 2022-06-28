@@ -55,6 +55,7 @@ class Builder3D {
 
         this.room = -1;
         this.smartObjects = [];
+        this.currentStoredData = [];
 
         let statsVR, stats;
 
@@ -110,7 +111,7 @@ class Builder3D {
             }
             if (scope.container != null) {
 
-                scope.camera = new THREE.PerspectiveCamera(90, scope.container.clientWidth / scope.container.clientHeight, .1, 20000)
+                scope.camera = new THREE.PerspectiveCamera(90, scope.container.clientWidth / scope.container.clientHeight, .05, 20000)
                 scope.camera.position.set(-20, 20, 20);
                 scope.camera.layers.enableAll();
                 scope.scene = new THREE.Scene();
@@ -160,7 +161,7 @@ class Builder3D {
         //console.log(this.gltfLoader.loadAsync);
 
         function loadBasics() {
-            scope.loadSmart("./teleporter_3/gltf.gltf", {}, (sm) => {
+            scope.loadSmart("https://3dbuilds.nyc3.cdn.digitaloceanspaces.com/smart/assets/models/teleporter_3/gltf.gltf", {}, (sm) => {
                 scope.smartTeleporter = sm;
             }, false);
         }
@@ -263,7 +264,6 @@ class Builder3D {
 
         }
 
-
         function update() {
             scope.clockDelta = clock.getDelta();
             scope.rules.update(scope.clockDelta);
@@ -276,6 +276,7 @@ class Builder3D {
             }
         }
 
+        //decide wither tick or update
         function tick(clockDelta) {
             //call tick from all smartObjects
             for (let i = 0; i < scope.smartObjects.length; i++) {
@@ -302,24 +303,31 @@ class Builder3D {
             scope.renderer.setSize(scope.container.clientWidth, scope.container.clientHeight);
         }
 
-        function toggleFullscreen(toggle) {
-            if (toggle) {
-                if (!document.fullscreenElement) {
-                    closeFullScreen.style.display = 'block';
-                    fullScreen.style.display = 'none';
-                    appContainer.requestFullscreen().catch(err => {
-                        alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
-                    });
-                }
-            } else {
-                closeFullScreen.style.display = "none";
-                fullScreen.style.display = "block";
-                document.exitFullscreen();
-            }
-        }
+
 
     }
 
+    toggleFullscreen(toggle) {
+        if (toggle) {
+            if (!document.fullscreenElement) {
+                this.container.requestFullscreen().catch(err => {
+                    alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                });
+            }
+        } else {
+            document.exitFullscreen();
+        }
+    }
+    sendData(data, store = false) {
+        const scope = this;
+        if (store === true) {
+            scope.currentStoredData = data;
+        }
+        scope.smartObjects.forEach(smart => {
+            smart.receiveData(scope.currentStoredData);
+        });
+
+    }
     clearSession(session) {
         session.forEach(smart => {
             //console.log(smart);
@@ -341,65 +349,60 @@ class Builder3D {
 
     async loadSession(jsonLocation, onJsonLoad, onLoad, clearLastSession = true) {
         const scope = this;
-        this.loadJsonSmart(jsonLocation, // must have allow cors
-            // on finished loading the json file
-            function() {
-                let sessionCleared = false;
-                if (scope.smartTeleporter != null) {
-                    const lastSession = scope.pageSession;
-                    scope.smartTeleporter.startTeleport(function() {
-                        if (clearLastSession === true) {
-                            scope.clearSession(lastSession);
-                            sessionCleared = true;
-                        }
-                    });
-                }
-
-                if (clearLastSession === true) {
-                    scope.pageSession = [];
-                    if (sessionCleared === false) scope.clearSession(scope.pageSession);
-                }
-
-                if (onJsonLoad != null)
-                    onJsonLoad();
-            },
-            // on finished loading all smart models
-            function() {
-                if (onLoad != null) onLoad();
-                if (scope.smartTeleporter != null) scope.smartTeleporter.endTeleport();
-            });
-    }
-
-    async loadJsonSmart(location, onJsonLoad, onLoad) {
-        const scope = this;
-        fetch(location)
+        fetch(jsonLocation)
             .then(response => response.json())
             .then(data => {
-                if (onJsonLoad != null) onJsonLoad();
-                if (data.smartObjects !== undefined) {
-                    let loadedModels = 0;
-                    const size = data.smartObjects.length;
-                    console.log(data.smartObjects);
-                    data.smartObjects.forEach(smart => {
-                        if (smart.location !== undefined) {
-                            scope.loadSmart(smart.location, smart.userData, function() {
-                                loadedModels++
-                                if (loadedModels == size) {
-                                    if (onLoad != null) onLoad();
-                                    console.log("finishes, check");
-                                }
-                            });
-                        }
-                    });
-                    //console.log(loadedModels);
-                    //if (loadedModels...)
-                    //if (onLoad != null) onLoad();
-                } else {
-                    console.warn('no smartObjects defined in xr-index.json');
-                }
+                if (onJsonLoad != null)
+                    onJsonLoad();
+                scope.loadJsonSmart(data, onLoad, clearLastSession);
             })
             .catch(error => console.error(error));
-        //console.log("after");
+
+    }
+
+    async loadJsonSmart(data, onLoad, clearLastSession = true) {
+        const scope = this;
+
+        let sessionCleared = false;
+        if (scope.smartTeleporter != null) {
+            const lastSession = scope.pageSession;
+            scope.smartTeleporter.startTeleport(function() {
+                if (clearLastSession === true) {
+                    scope.clearSession(lastSession);
+                    sessionCleared = true;
+                }
+            });
+        }
+
+        if (clearLastSession === true) {
+            scope.pageSession = [];
+            if (sessionCleared === false) scope.clearSession(scope.pageSession);
+        }
+
+        if (data.smartObjects !== undefined) {
+            let loadedModels = 0;
+            const size = data.smartObjects.length;
+            console.log(data.smartObjects);
+            data.smartObjects.forEach(smart => {
+                if (smart.location !== undefined) {
+                    scope.loadSmart(smart.location, smart.userData, function() {
+                        loadedModels++
+                        if (loadedModels == size) {
+                            if (onLoad != null) onLoad();
+
+                            //end teleport animation
+                            if (scope.smartTeleporter != null) scope.smartTeleporter.endTeleport();
+                            console.log("finishes, check");
+                        }
+                    });
+                }
+            });
+            //console.log(loadedModels);
+            //if (loadedModels...)
+            //if (onLoad != null) onLoad();
+        } else {
+            console.warn('no smartObjects defined in xr-index.json');
+        }
     }
 
     async loadSpace(location, customData, onLoad) {
@@ -437,10 +440,21 @@ class Builder3D {
                 //     if (gltf.userData.smartObject.smartType !== undefined)
                 //         if (gltf.userData.smartObject.smartType === "space")
                 //             scope.setRoom(smart);
+                smart.receiveData(scope.currentStoredData);
                 if (onLoad !== undefined)
                     onLoad(smart);
             });
         }, false);
+    }
+
+    addSmartObject(gltf, customData, addToSession = true) {
+        const scope = this;
+        console.log(gltf);
+        SmartObject.CreateSmartObject(gltf, customData, scope, function(smart) {
+            if (addToSession) scope.pageSession.push(smart);
+
+            scope.smartObjects.push(smart);
+        });
     }
 
     // loadGLTFAsync(url, onProgress) {
@@ -511,9 +525,12 @@ class Builder3D {
             // if (`${window.location.protocol}//${window.location.hostname}/` !== this.currentPage) {
             //     window.open(this.currentPage, "_self")
             // }
+            this.xrSession = null;
             if (this.currentPage != '') {
                 window.open(this.currentPage, "_self")
             }
+
+            console.log(this.xrSession);
         }
     }
 
